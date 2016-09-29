@@ -34,9 +34,9 @@ class Params():
 
 		self.wscale = 0.1
 
-
 		if dict:
 			self.from_dict(dict)
+			self.check()
 
 	def from_dict(self, dict):
 		for attr, value in dict.iteritems():
@@ -55,7 +55,10 @@ class Params():
 			print "	{}: {}".format(attr, value)
 
 	def check(self):
-		pass
+		base = Params()
+		for attr, value in self.__dict__.iteritems():
+			if not hasattr(base, attr):
+				raise Exception("invalid parameter '{}'".format(attr))
 
 class DDGM():
 
@@ -79,7 +82,7 @@ class DDGM():
 			else:
 				attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
 
-		attributes["bias"] = L.Linear(params.ndim_x, params.ndim_x, wscale=params.wscale, nobias=True)
+		attributes["b"] = L.Linear(params.ndim_x, 1, wscale=params.wscale, nobias=True)
 		attributes["experts"] = L.Linear(params.energy_model_features_hidden_units[-1], params.energy_model_num_experts, wscale=params.wscale)
 
 		self.energy_model = DeepEnergyModel(**attributes, params, n_layers=len(units))
@@ -130,7 +133,15 @@ class DDGM():
 
 	@property
 	def gpu_enabled(self):
+		if cuda.available is False:
+			return False
 		return self.params.gpu_enabled
+
+	@property
+	def xp(self):
+		if self.gpu_enabled:
+			return cuda.cupy
+		return np
 
 	def to_variable(self, x):
 		if isinstance(x, Variable) == False:
@@ -144,78 +155,31 @@ class DDGM():
 			return x.data.shape[0]
 		return x.shape[0]
 
-	def compute_energy(self, x_batch):
-		pass
-
-	def forward_one_step(self, x_batch, softmax=True, return_numpy=False):
+	def compute_energy(self, x_batch, test=False):
 		x_batch = self.to_variable(x_batch)
-		causal_output = self.forward_causal_block(x_batch)
-		residual_output, sum_skip_connections = self.forward_residual_block(causal_output)
-		softmax_output = self.forward_softmax_block(sum_skip_connections, softmax=softmax)
-		if return_numpy:
-			if self.gpu_enabled:
-				softmax_output.to_cpu()
-			return softmax_output.data
-		return softmax_output
+		return self.energy_model(x_batch, test=test)
 
-	def forward_causal_block(self, x_batch):
-		input_batch = self.to_variable(x_batch)
-		for layer in self.causal_conv_layers:
-			output = layer(input_batch)
-			input_batch = output
-		return output
+	def sample_z(self, batchsize=1):
+		xp = self.xp
+		z_batch = (xp.random.uniform(-1, 1, (batchsize, self.params.generative_model_ndim_z), dtype=np.float32))
+		return z_batch
 
-	def forward_residual_block(self, x_batch):
-		params = self.params
-		sum_skip_connections = 0
-		input_batch = self.to_variable(x_batch)
-		for i, block in enumerate(self.residual_blocks):
-			for layer in block:
-				output, z = layer(input_batch)
-				sum_skip_connections += z
-				input_batch = output
+	def generate_x(self, batchsize=1, test=False):
+		return self.generate_x_from_z(self.sample_z(batchsize), test=test)
 
-		return output, sum_skip_connections
-
-	def forward_softmax_block(self, x_batch, softmax=True):
-		input_batch = self.to_variable(x_batch)
-		batchsize = self.get_batchsize(x_batch)
-		for layer in self.softmax_conv_layers:
-			input_batch = F.elu(input_batch)
-			output = layer(input_batch)
-			input_batch = output
-		if softmax:
-			output = F.softmax(output)
-		return output
-
-	# raw_network_output.ndim:	(batchsize, channels, 1, time_step)
-	# target_signal_data.ndim:	(batchsize, time_step)
-	def cross_entropy(self, raw_network_output, target_signal_data):
-		if isinstance(target_signal_data, Variable):
-			raise Exception("target_signal_data cannot be Variable")
-
-		raw_network_output = self.to_variable(raw_network_output)
-		target_width = target_signal_data.shape[1]
-		batchsize = raw_network_output.data.shape[0]
-
-		if raw_network_output.data.shape[3] != target_width:
-			raise Exception("raw_network_output.width != target.width")
-
-		# (batchsize * time_step,) <- (batchsize, time_step)
-		target_signal_data = target_signal_data.reshape((-1,))
-		target_signal = self.to_variable(target_signal_data)
-
-		# (batchsize * time_step, channels) <- (batchsize, channels, 1, time_step)
-		raw_network_output = F.transpose(raw_network_output, (0, 3, 2, 1))
-		raw_network_output = F.reshape(raw_network_output, (batchsize * target_width, -1))
-
-		loss = F.sum(F.softmax_cross_entropy(raw_network_output, target_signal))
-		return loss
+	def generate_x_from_z(self, z_batch, test=False):
+		z_batch = self.to_variable(z_batch)
+		return self.generative_model(z_batch)
 
 	def backprop(self, loss):
 		self.zero_grads()
 		loss.backward()
 		self.update()
+
+	def compute_loss(self, x_batch_positive, x_batch_negative):
+		energy_positive = self.compute_energy(x_batch_positive)
+		energy_negative = self.compute_energy(x_batch_negative)
+		return energy_positive + energy_negative
 
 	def save(self, dir="./"):
 		try:
@@ -323,7 +287,7 @@ class DeepEnergyModel(chainer.Chain):
 	def xp(self):
 		return np if self._cpu else cuda.cupy
 
-	def extract_feature(self, x):
+	def extract_features(self, x):
 		f = activations[self.activation_function]
 		chain = [x]
 
@@ -349,13 +313,14 @@ class DeepEnergyModel(chainer.Chain):
 
 		return chain[-1]
 
-	def compute_energy(self, x):
-		e = F.log(1 + F.exp(self.experts(x)))
+	def compute_energy(self, x, features):
+		experts = -F.log(1 + F.exp(self.experts(features)))
+		sigma = 1.0
+		energy = F.transpose(x) * x / sigma - self.b(x) + F.sum(experts)
+		return energy, experts
 
-	def __call__(self, x, test=False, apply_f=True):
+	def __call__(self, x, test=False):
 		self.test = test
-		output = self.compute_output(x)
-		if apply_f:
-			f = activations[self.activation_function]
-			return f(output)
-		return output
+		features = self.extract_features(x)
+		energy, experts = self.compute_energy(x, features)
+		return energy, experts
