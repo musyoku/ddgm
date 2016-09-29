@@ -80,7 +80,6 @@ class DDGM():
 		attributes = {}
 		units = [(params.ndim_x, params.energy_model_features_hidden_units[0])]
 		units += zip(params.energy_model_features_hidden_units[:-1], params.energy_model_features_hidden_units[1:])
-		units += [(params.energy_model_features_hidden_units[-1], params.energy_model_num_experts)]
 		for i, (n_in, n_out) in enumerate(units):
 			attributes["layer_%i" % i] = L.Linear(n_in, n_out, wscale=params.wscale)
 			if params.batchnorm_before_activation:
@@ -168,7 +167,7 @@ class DDGM():
 
 	def sample_z(self, batchsize=1):
 		# uniform
-		z_batch = np.random.uniform(-1, 1, (batchsize, self.params.ndim_z), dtype=np.float32)
+		z_batch = np.random.uniform(-1, 1, (batchsize, self.params.ndim_z)).astype(np.float32)
 		# gaussian
 		# z_batch = np.random.normal(0, 1, (batchsize, self.params.ndim_z)).astype(np.float32)
 		return z_batch
@@ -186,9 +185,9 @@ class DDGM():
 		self.update()
 
 	def compute_loss(self, x_batch_positive, x_batch_negative):
-		energy_positive = self.compute_energy(x_batch_positive)
-		energy_negative = self.compute_energy(x_batch_negative)
-		return energy_positive + energy_negative
+		energy_positive, experts_positive = self.compute_energy(x_batch_positive)
+		energy_negative, experts_negative = self.compute_energy(x_batch_negative)
+		return F.sum(energy_positive + energy_negative)
 
 	def load(self, dir=None):
 		if dir is None:
@@ -310,9 +309,22 @@ class DeepEnergyModel(chainer.Chain):
 		return chain[-1]
 
 	def compute_energy(self, x, features):
-		experts = -F.log(1 + F.exp(self.experts(features)))
+		experts = self.experts(features)
+		print "experts"
+		print experts.data
+		print "exp"
+		print F.exp(experts).data
+		experts = -F.log(1 + F.exp(experts))
+		print "log"
+		print experts.data
+		value = float(F.sum(experts).data)
+		print "energy"
+		print value
+		if value != value:
+			raise Exception()
+
 		sigma = 1.0
-		energy = F.transpose(x) * x / sigma - self.b(x) + F.sum(experts)
+		energy = F.reshape(F.sum(x * x, axis=1), (-1, 1)) / sigma - self.b(x) + F.reshape(F.sum(experts, axis=1), (-1, 1))
 		return energy, experts
 
 	def __call__(self, x, test=False):

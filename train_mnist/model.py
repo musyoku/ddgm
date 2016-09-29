@@ -36,10 +36,10 @@ else:
 	params.generative_model_hidden_units = [500]
 	params.generative_model_apply_batchnorm_to_input = False
 
-	params.wscale = 0.1
-	params.gradient_clipping = 0
-	params.gradient_momentum = 0
-	params.learning_rate = 0.001
+	params.wscale = 0.001
+	params.gradient_clipping = 10
+	params.gradient_momentum = 0.9
+	params.learning_rate = 0.0003
 	params.gpu_enabled = True if args.gpu_enabled == 1 else False
 
 	with open(filename, "w") as f:
