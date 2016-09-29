@@ -33,6 +33,11 @@ class Params():
 		self.generative_model_apply_batchnorm_to_input = False
 
 		self.wscale = 0.1
+		self.gradient_clipping = 10
+		self.gradient_momentum = 0.9
+		self.weight_decay = 0
+		self.learning_rate = 0.001
+		self.gpu_enabled = True
 
 		if dict:
 			self.from_dict(dict)
@@ -72,6 +77,7 @@ class DDGM():
 		params = self.params
 
 		# deep energy model
+		attributes = {}
 		units = [(params.ndim_x, params.energy_model_features_hidden_units[0])]
 		units += zip(params.energy_model_features_hidden_units[:-1], params.energy_model_features_hidden_units[1:])
 		units += [(params.energy_model_features_hidden_units[-1], params.energy_model_num_experts)]
@@ -85,9 +91,10 @@ class DDGM():
 		attributes["b"] = L.Linear(params.ndim_x, 1, wscale=params.wscale, nobias=True)
 		attributes["experts"] = L.Linear(params.energy_model_features_hidden_units[-1], params.energy_model_num_experts, wscale=params.wscale)
 
-		self.energy_model = DeepEnergyModel(**attributes, params, n_layers=len(units))
+		self.energy_model = DeepEnergyModel(params, n_layers=len(units), **attributes)
 
 		# deep generative model
+		attributes = {}
 		units = [(params.ndim_z, params.generative_model_hidden_units[0])]
 		units += zip(params.generative_model_hidden_units[:-1], params.generative_model_hidden_units[1:])
 		units += [(params.generative_model_hidden_units[-1], params.ndim_x)]
@@ -98,7 +105,7 @@ class DDGM():
 			else:
 				attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
 
-		self.generative_model = DeepGenerativeModel(**attributes, params, len(units))
+		self.generative_model = DeepGenerativeModel(params, n_layers=len(units), **attributes)
 
 	def setup_optimizers(self):
 		params = self.params
@@ -183,49 +190,36 @@ class DDGM():
 		energy_negative = self.compute_energy(x_batch_negative)
 		return energy_positive + energy_negative
 
-	def save(self, dir="./"):
+	def load(self, dir=None):
+		if dir is None:
+			raise Exception()
+		for attr in vars(self):
+			prop = getattr(self, attr)
+			if isinstance(prop, chainer.Chain) or isinstance(prop, chainer.optimizer.GradientMethod):
+				filename = dir + "/{}.hdf5".format(attr)
+				if os.path.isfile(filename):
+					print "loading",  filename
+					serializers.load_hdf5(filename, prop)
+				else:
+					print filename, "not found."
+		print "model loaded."
+
+	def save(self, dir=None):
+		if dir is None:
+			raise Exception()
 		try:
 			os.mkdir(dir)
 		except:
 			pass
-		for i, layer in enumerate(self.causal_conv_layers):
-			filename = dir + "/causal_conv_layer_{}.hdf5".format(i)
-			serializers.save_hdf5(filename, layer)
-
-		for i, block in enumerate(self.residual_blocks):
-			for j, layer in enumerate(block):
-				filename = dir + "/residual_{}_conv_layer_{}.hdf5".format(i, j)
-				serializers.save_hdf5(filename, layer)
-
-		for i, layer in enumerate(self.softmax_conv_layers):
-			filename = dir + "/softmax_conv_layer_{}.hdf5".format(i)
-			serializers.save_hdf5(filename, layer)
-			
-
-	def load(self, dir="./"):
-		def load_hdf5(filename, layer):
-			if os.path.isfile(filename):
-				print "loading", filename
-				serializers.load_hdf5(filename, layer)
-			
-		for i, layer in enumerate(self.causal_conv_layers):
-			filename = dir + "/causal_conv_layer_{}.hdf5".format(i)
-			load_hdf5(filename, layer)
-			
-		for i, block in enumerate(self.residual_blocks):
-			for j, layer in enumerate(block):
-				filename = dir + "/residual_{}_conv_layer_{}.hdf5".format(i, j)
-				load_hdf5(filename, layer)
-			
-		for i, layer in enumerate(self.softmax_conv_layers):
-			filename = dir + "/softmax_conv_layer_{}.hdf5".format(i)
-			load_hdf5(filename, layer)
-
-
+		for attr in vars(self):
+			prop = getattr(self, attr)
+			if isinstance(prop, chainer.Chain) or isinstance(prop, chainer.optimizer.GradientMethod):
+				serializers.save_hdf5(dir + "/{}.hdf5".format(attr), prop)
+		print "model saved."
 
 class DeepGenerativeModel(chainer.Chain):
-	def __init__(self, **layers, params, n_layers=0):
-		super(MultiLayerPerceptron, self).__init__(**layers)
+	def __init__(self, params, n_layers, **layers):
+		super(DeepGenerativeModel, self).__init__(**layers)
 
 		self.n_layers = n_layers
 		self.activation_function = params.activation_function
@@ -272,8 +266,8 @@ class DeepGenerativeModel(chainer.Chain):
 		return self.compute_output(x)
 
 class DeepEnergyModel(chainer.Chain):
-	def __init__(self, **layers, params, n_layers=0):
-		super(MultiLayerPerceptron, self).__init__(**layers)
+	def __init__(self, params, n_layers, **layers):
+		super(DeepEnergyModel, self).__init__(**layers)
 
 		self.n_layers = n_layers
 		self.activation_function = params.activation_function

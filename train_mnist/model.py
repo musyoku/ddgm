@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-import json, os
+import json, os, sys
 from args import args
+sys.path.append(os.path.split(os.getcwd())[0])
 from ddgm import DDGM, Params
-from faster_wavenet import FasterWaveNet
 
 # load params.json
 try:
@@ -20,8 +20,6 @@ if os.path.isfile(filename):
 		raise Exception("could not load {}".format(filename))
 
 	params.gpu_enabled = True if args.gpu_enabled == 1 else False
-
-	ddgm = DDGM(params)
 else:
 	params = Params()
 	params.ndim_x = 28 * 28
@@ -39,12 +37,15 @@ else:
 	params.generative_model_apply_batchnorm_to_input = False
 
 	params.wscale = 0.1
+	params.gradient_clipping = 0
+	params.gradient_momentum = 0
+	params.learning_rate = 0.001
 	params.gpu_enabled = True if args.gpu_enabled == 1 else False
 
-	ddgm = DDGM(params)
-
 	with open(filename, "w") as f:
+		params.check()
 		json.dump(params.to_dict(), f, indent=4)
 
 params.dump()
+ddgm = DDGM(params)
 ddgm.load(args.model_dir)
