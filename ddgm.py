@@ -79,7 +79,10 @@ class DDGM():
 			else:
 				attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
 
-		energy_model = DeepGenerativeModel(**attributes, params, len(units))
+		attributes["bias"] = L.Linear(params.ndim_x, params.ndim_x, wscale=params.wscale, nobias=True)
+		attributes["experts"] = L.Linear(params.energy_model_features_hidden_units[-1], params.energy_model_num_experts, wscale=params.wscale)
+
+		self.energy_model = DeepEnergyModel(**attributes, params, n_layers=len(units))
 
 		# deep generative model
 		units = [(params.generative_model_ndim_z, params.generative_model_hidden_units[0])]
@@ -92,76 +95,42 @@ class DDGM():
 			else:
 				attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
 
-		generative_model = DeepGenerativeModel(**attributes, params, len(units))
-
+		self.generative_model = DeepGenerativeModel(**attributes, params, len(units))
 
 	def setup_optimizers(self):
 		params = self.params
 		
-		self.causal_conv_optimizers = []
-		for layer in self.causal_conv_layers:
-			opt = optimizers.Adam(alpha=params.learning_rate, beta1=params.gradient_momentum)
-			opt.setup(layer)
+		opt = optimizers.Adam(alpha=params.learning_rate, beta1=params.gradient_momentum)
+		opt.setup(self.energy_model)
+		if params.weight_decay > 0:
 			opt.add_hook(optimizer.WeightDecay(params.weight_decay))
+		if params.gradient_clipping > 0:
 			opt.add_hook(GradientClipping(params.gradient_clipping))
-			self.causal_conv_optimizers.append(opt)
+		self.optimizer_energy_model = opt
 		
-		self.residual_conv_optimizers = []
-		for block in self.residual_blocks:
-			for layer in block:
-				opt = optimizers.Adam(alpha=params.learning_rate, beta1=params.gradient_momentum)
-				opt.setup(layer)
-				opt.add_hook(optimizer.WeightDecay(params.weight_decay))
-				opt.add_hook(GradientClipping(params.gradient_clipping))
-				self.residual_conv_optimizers.append(opt)
-		
-		self.softmax_conv_optimizers = []
-		for layer in self.softmax_conv_layers:
-			opt = optimizers.Adam(alpha=params.learning_rate, beta1=params.gradient_momentum)
-			opt.setup(layer)
+		opt = optimizers.Adam(alpha=params.learning_rate, beta1=params.gradient_momentum)
+		opt.setup(self.generative_model)
+		if params.weight_decay > 0:
 			opt.add_hook(optimizer.WeightDecay(params.weight_decay))
+		if params.gradient_clipping > 0:
 			opt.add_hook(GradientClipping(params.gradient_clipping))
-			self.softmax_conv_optimizers.append(opt)
+		self.optimizer_generative_model = opt
 
 	def update_laerning_rate(self, lr):
-		for opt in self.causal_conv_optimizers:
-			opt.alpha = lr
-
-		for opt in self.residual_conv_optimizers:
-			opt.alpha = lr
-			
-		for opt in self.softmax_conv_optimizers:
-			opt.alpha = lr
+		self.optimizer_energy_model.alpha = lr
+		self.optimizer_generative_model.alpha = lr
 
 	def zero_grads(self):
-		for opt in self.causal_conv_optimizers:
-			opt.zero_grads()
-
-		for opt in self.residual_conv_optimizers:
-			opt.zero_grads()
-			
-		for opt in self.softmax_conv_optimizers:
-			opt.zero_grads()
+		self.optimizer_energy_model.zero_grads()
+		self.optimizer_generative_model.zero_grads()
 
 	def update(self):
-		for opt in self.causal_conv_optimizers:
-			opt.update()
-
-		for opt in self.residual_conv_optimizers:
-			opt.update()
-			
-		for opt in self.softmax_conv_optimizers:
-			opt.update()
+		self.optimizer_energy_model.update()
+		self.optimizer_generative_model.update()
 
 	@property
 	def gpu_enabled(self):
 		return self.params.gpu_enabled
-
-	def slice_1d(self, x, cut=0):
-		return CausalSlice1d(cut)(x)
-
-	def padding_1d(self, x, pad=0):
-		return CausalPadding1d(pad)(x)
 
 	def to_variable(self, x):
 		if isinstance(x, Variable) == False:
@@ -174,6 +143,9 @@ class DDGM():
 		if isinstance(x, Variable):
 			return x.data.shape[0]
 		return x.shape[0]
+
+	def compute_energy(self, x_batch):
+		pass
 
 	def forward_one_step(self, x_batch, softmax=True, return_numpy=False):
 		x_batch = self.to_variable(x_batch)
@@ -286,7 +258,7 @@ class DDGM():
 
 
 class DeepGenerativeModel(chainer.Chain):
-	def __init__(self, **layers, params, n_layers):
+	def __init__(self, **layers, params, n_layers=0):
 		super(MultiLayerPerceptron, self).__init__(**layers)
 
 		self.n_layers = n_layers
@@ -307,28 +279,78 @@ class DeepGenerativeModel(chainer.Chain):
 		f = activations[self.activation_function]
 		chain = [x]
 
-		# Hidden
 		for i in range(self.n_layers):
 			u = chain[-1]
+
 			if self.batchnorm_before_activation:
 				u = getattr(self, "layer_%i" % i)(u)
-			if i == self.n_layers - 1:
-				if self.apply_batchnorm and self.batchnorm_before_activation == False:
+
+			if self.apply_batchnorm:
+				if i == 0 and self.apply_batchnorm_to_input == True:
 					u = getattr(self, "batchnorm_%d" % i)(u, test=self.test)
-			else:
-				if self.apply_batchnorm:
+				else:
 					u = getattr(self, "batchnorm_%d" % i)(u, test=self.test)
+
 			if self.batchnorm_before_activation == False:
 				u = getattr(self, "layer_%i" % i)(u)
-			if i == self.n_layers - 1:
-				output = u
-			else:
-				output = f(u)
-				if self.apply_dropout:
-					output = F.dropout(output, train=not self.test)
+
+			output = f(u)
+			if self.apply_dropout:
+				output = F.dropout(output, train=not self.test)
 			chain.append(output)
 
 		return chain[-1]
+
+	def __call__(self, x, test=False):
+		self.test = test
+		return self.compute_output(x)
+
+class DeepEnergyModel(chainer.Chain):
+	def __init__(self, **layers, params, n_layers=0):
+		super(MultiLayerPerceptron, self).__init__(**layers)
+
+		self.n_layers = n_layers
+		self.activation_function = params.activation_function
+		self.apply_dropout = params.apply_dropout
+		self.apply_batchnorm = params.batchnorm_enabled
+		self.apply_batchnorm_to_input = params.energy_model_apply_batchnorm_to_input
+		self.batchnorm_before_activation = params.batchnorm_before_activation
+
+		if params.gpu_enabled:
+			self.to_gpu()
+
+	@property
+	def xp(self):
+		return np if self._cpu else cuda.cupy
+
+	def extract_feature(self, x):
+		f = activations[self.activation_function]
+		chain = [x]
+
+		for i in range(self.n_layers):
+			u = chain[-1]
+
+			if self.batchnorm_before_activation:
+				u = getattr(self, "layer_%i" % i)(u)
+
+			if self.apply_batchnorm:
+				if i == 0 and self.apply_batchnorm_to_input == True:
+					u = getattr(self, "batchnorm_%d" % i)(u, test=self.test)
+				else:
+					u = getattr(self, "batchnorm_%d" % i)(u, test=self.test)
+
+			if self.batchnorm_before_activation == False:
+				u = getattr(self, "layer_%i" % i)(u)
+
+			output = f(u)
+			if self.apply_dropout:
+				output = F.dropout(output, train=not self.test)
+			chain.append(output)
+
+		return chain[-1]
+
+	def compute_energy(self, x):
+		e = F.log(1 + F.exp(self.experts(x)))
 
 	def __call__(self, x, test=False, apply_f=True):
 		self.test = test
