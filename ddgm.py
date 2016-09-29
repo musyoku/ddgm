@@ -19,17 +19,17 @@ activations = {
 class Params():
 	def __init__(self, dict=None):
 		self.ndim_x = 28 * 28
+		self.ndim_z = 10
 		self.batchnorm_before_activation = True
 		self.batchnorm_enabled = True
 		self.activation_function = "elu"
 		self.apply_dropout = False
 
 		self.energy_model_num_experts = 128
-		self.energy_model_features_hidden_units = [128]
+		self.energy_model_features_hidden_units = [500]
 		self.energy_model_apply_batchnorm_to_input = True
 
-		self.generative_model_ndim_z = 10
-		self.generative_model_hidden_units = [128]
+		self.generative_model_hidden_units = [500]
 		self.generative_model_apply_batchnorm_to_input = False
 
 		self.wscale = 0.1
@@ -88,7 +88,7 @@ class DDGM():
 		self.energy_model = DeepEnergyModel(**attributes, params, n_layers=len(units))
 
 		# deep generative model
-		units = [(params.generative_model_ndim_z, params.generative_model_hidden_units[0])]
+		units = [(params.ndim_z, params.generative_model_hidden_units[0])]
 		units += zip(params.generative_model_hidden_units[:-1], params.generative_model_hidden_units[1:])
 		units += [(params.generative_model_hidden_units[-1], params.ndim_x)]
 		for i, (n_in, n_out) in enumerate(units):
@@ -160,8 +160,10 @@ class DDGM():
 		return self.energy_model(x_batch, test=test)
 
 	def sample_z(self, batchsize=1):
-		xp = self.xp
-		z_batch = (xp.random.uniform(-1, 1, (batchsize, self.params.generative_model_ndim_z), dtype=np.float32))
+		# uniform
+		z_batch = np.random.uniform(-1, 1, (batchsize, self.params.ndim_z), dtype=np.float32)
+		# gaussian
+		# z_batch = np.random.normal(0, 1, (batchsize, self.params.ndim_z)).astype(np.float32)
 		return z_batch
 
 	def generate_x(self, batchsize=1, test=False):
