@@ -90,7 +90,7 @@ class DDGM():
 				attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
 
 		attributes["b"] = L.Linear(params.ndim_x, 1, wscale=params.wscale, nobias=True)
-		attributes["experts"] = L.Linear(params.energy_model_features_hidden_units[-1], params.energy_model_num_experts, wscale=params.wscale)
+		attributes["feature_detector"] = L.Linear(params.energy_model_features_hidden_units[-1], params.energy_model_num_experts, wscale=params.wscale)
 
 		self.energy_model = DeepEnergyModel(params, n_layers=len(units), **attributes)
 
@@ -131,14 +131,6 @@ class DDGM():
 		self.optimizer_energy_model.alpha = lr
 		self.optimizer_generative_model.alpha = lr
 
-	def zero_grads(self):
-		self.optimizer_energy_model.zero_grads()
-		self.optimizer_generative_model.zero_grads()
-
-	def update(self):
-		self.optimizer_energy_model.update()
-		self.optimizer_generative_model.update()
-
 	@property
 	def gpu_enabled(self):
 		if cuda.available is False:
@@ -163,6 +155,10 @@ class DDGM():
 			return x.data.shape[0]
 		return x.shape[0]
 
+	def zero_grads(self):
+		self.optimizer_energy_model.zero_grads()
+		self.optimizer_generative_model.zero_grads()
+
 	def compute_energy(self, x_batch, test=False):
 		x_batch = self.to_variable(x_batch)
 		return self.energy_model(x_batch, test=test)
@@ -181,13 +177,13 @@ class DDGM():
 		z_batch = self.to_variable(z_batch)
 		return self.generative_model(z_batch)
 
-	def backprop(self, loss):
+	def backprop_energy_model(self, loss):
 		self.zero_grads()
 		loss.backward()
-		self.update()
+		self.optimizer_energy_model.update()
 
-	def backprop_generator(self, loss):
-		self.optimizer_generative_model.zero_grads()
+	def backprop_generative_model(self, loss):
+		self.zero_grads()
 		loss.backward()
 		self.optimizer_generative_model.update()
 
@@ -198,7 +194,7 @@ class DDGM():
 	def compute_loss(self, x_batch_positive, x_batch_negative):
 		energy_positive, experts_positive = self.compute_energy(x_batch_positive)
 		energy_negative, experts_negative = self.compute_energy(x_batch_negative)
-		return F.sum(energy_positive - energy_negative) / self.get_batchsize(x_batch_positive)
+		return F.sum(energy_positive) / self.get_batchsize(x_batch_positive) - F.sum(energy_negative) / self.get_batchsize(x_batch_negative)
 
 	def load(self, dir=None):
 		if dir is None:
@@ -212,7 +208,6 @@ class DDGM():
 					serializers.load_hdf5(filename, prop)
 				else:
 					print filename, "not found."
-		print "model loaded."
 
 	def save(self, dir=None):
 		if dir is None:
@@ -271,6 +266,8 @@ class DeepGenerativeModel(chainer.Chain):
 			if self.apply_batchnorm:
 				if i == 0 and self.apply_batchnorm_to_input == True:
 					u = getattr(self, "batchnorm_%d" % i)(u, test=self.test)
+				elif i == self.n_layers - 1 and self.batchnorm_before_activation == True:
+					pass
 				else:
 					u = getattr(self, "batchnorm_%d" % i)(u, test=self.test)
 
@@ -328,10 +325,10 @@ class DeepEnergyModel(chainer.Chain):
 			if self.batchnorm_before_activation == False:
 				u = getattr(self, "layer_%i" % i)(u)
 
-			output = f(u)
 			if i == self.n_layers - 1:
-				pass
+				output = f(u)
 			else:
+				output = f(u)
 				if self.apply_dropout:
 					output = F.dropout(output, train=not self.test)
 			chain.append(output)
@@ -339,20 +336,11 @@ class DeepEnergyModel(chainer.Chain):
 		return chain[-1]
 
 	def compute_energy(self, x, features):
-		experts = self.experts(features)
+		feature_detector = self.feature_detector(features)
 		xp = self.xp
-		print "experts"
-		print xp.amax(experts.data)
-		print "exp"
-		print xp.amax(F.exp(experts).data)
-		experts = -F.log(1 + F.exp(experts))
-		print "log"
-		print experts.data
-		value = float(F.sum(experts).data)
-		print "energy"
-		print value
-		if value != value:
-			raise Exception()
+		# avoid overflow
+		# -log(1 + exp(x)) = -max(0, x) - log(1 + exp(-|x|)) = -softplus
+		experts = -F.softplus(feature_detector)
 
 		sigma = 1.0
 		energy = F.reshape(F.sum(x * x, axis=1), (-1, 1)) / sigma - self.b(x) + F.reshape(F.sum(experts, axis=1), (-1, 1))
