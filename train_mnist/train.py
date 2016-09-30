@@ -44,12 +44,20 @@ def main():
 		for t in xrange(n_trains_per_epoch):
 			# sample from data distribution
 			x_positive = sample_from_data(images, batchsize, params.ndim_x)
-			# sample from generator
-			x_negative = ddgm.generate_x(batchsize)
 
-			# train
+			# loss for energy model
+			## sample from generator
+			x_negative = ddgm.generate_x(batchsize)
 			loss = ddgm.compute_loss(x_positive, x_negative)
+
+			# loss for generative model
+			## sample from generator
+			x_negative = ddgm.generate_x(batchsize)
+			kld = ddgm.compute_kld_between_generator_and_energy_model(x_negative)
+
+			# update parameters
 			ddgm.backprop(loss)
+			ddgm.backprop_generator(kld)
 
 			sum_loss += float(loss.data)
 			if t % 10 == 0:

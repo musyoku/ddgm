@@ -20,17 +20,19 @@ class Params():
 	def __init__(self, dict=None):
 		self.ndim_x = 28 * 28
 		self.ndim_z = 10
-		self.batchnorm_before_activation = True
-		self.batchnorm_enabled = True
 		self.activation_function = "elu"
 		self.apply_dropout = False
 
 		self.energy_model_num_experts = 128
 		self.energy_model_features_hidden_units = [500]
 		self.energy_model_apply_batchnorm_to_input = True
+		self.energy_model_batchnorm_before_activation = False
+		self.energy_model_batchnorm_enabled = True
 
 		self.generative_model_hidden_units = [500]
 		self.generative_model_apply_batchnorm_to_input = False
+		self.generative_model_batchnorm_before_activation = False
+		self.generative_model_batchnorm_enabled = True
 
 		self.wscale = 0.1
 		self.gradient_clipping = 10
@@ -82,7 +84,7 @@ class DDGM():
 		units += zip(params.energy_model_features_hidden_units[:-1], params.energy_model_features_hidden_units[1:])
 		for i, (n_in, n_out) in enumerate(units):
 			attributes["layer_%i" % i] = L.Linear(n_in, n_out, wscale=params.wscale)
-			if params.batchnorm_before_activation:
+			if params.energy_model_batchnorm_before_activation:
 				attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out)
 			else:
 				attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
@@ -99,7 +101,7 @@ class DDGM():
 		units += [(params.generative_model_hidden_units[-1], params.ndim_x)]
 		for i, (n_in, n_out) in enumerate(units):
 			attributes["layer_%i" % i] = L.Linear(n_in, n_out, wscale=params.wscale)
-			if params.batchnorm_before_activation:
+			if params.generative_model_batchnorm_before_activation:
 				attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out)
 			else:
 				attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
@@ -114,7 +116,7 @@ class DDGM():
 		if params.weight_decay > 0:
 			opt.add_hook(optimizer.WeightDecay(params.weight_decay))
 		if params.gradient_clipping > 0:
-			opt.add_hook(GradientClipping(params.gradient_clipping))
+			opt.add_hook(optimizer.GradientClipping(params.gradient_clipping))
 		self.optimizer_energy_model = opt
 		
 		opt = optimizers.Adam(alpha=params.learning_rate, beta1=params.gradient_momentum)
@@ -122,7 +124,7 @@ class DDGM():
 		if params.weight_decay > 0:
 			opt.add_hook(optimizer.WeightDecay(params.weight_decay))
 		if params.gradient_clipping > 0:
-			opt.add_hook(GradientClipping(params.gradient_clipping))
+			opt.add_hook(optimizer.GradientClipping(params.gradient_clipping))
 		self.optimizer_generative_model = opt
 
 	def update_laerning_rate(self, lr):
@@ -184,10 +186,19 @@ class DDGM():
 		loss.backward()
 		self.update()
 
+	def backprop_generator(self, loss):
+		self.optimizer_generative_model.zero_grads()
+		loss.backward()
+		self.optimizer_generative_model.update()
+
+	def compute_kld_between_generator_and_energy_model(self, x_batch_negative):
+		energy_negative, experts_negative = self.compute_energy(x_batch_negative)
+		return F.sum(energy_negative) / self.get_batchsize(x_batch_negative)
+
 	def compute_loss(self, x_batch_positive, x_batch_negative):
 		energy_positive, experts_positive = self.compute_energy(x_batch_positive)
 		energy_negative, experts_negative = self.compute_energy(x_batch_negative)
-		return F.sum(energy_positive + energy_negative)
+		return F.sum(energy_positive - energy_negative) / self.get_batchsize(x_batch_positive)
 
 	def load(self, dir=None):
 		if dir is None:
@@ -223,9 +234,9 @@ class DeepGenerativeModel(chainer.Chain):
 		self.n_layers = n_layers
 		self.activation_function = params.activation_function
 		self.apply_dropout = params.apply_dropout
-		self.apply_batchnorm = params.batchnorm_enabled
-		self.apply_batchnorm_to_input = params.energy_model_apply_batchnorm_to_input
-		self.batchnorm_before_activation = params.batchnorm_before_activation
+		self.apply_batchnorm = params.generative_model_batchnorm_enabled
+		self.apply_batchnorm_to_input = params.generative_model_apply_batchnorm_to_input
+		self.batchnorm_before_activation = params.generative_model_batchnorm_before_activation
 
 		if params.gpu_enabled:
 			self.to_gpu()
@@ -233,6 +244,19 @@ class DeepGenerativeModel(chainer.Chain):
 	@property
 	def xp(self):
 		return np if self._cpu else cuda.cupy
+
+	def compute_entropy(self):
+		entropy = 0
+
+		if self.apply_batchnorm == False:
+			return entropy
+
+		for i in range(self.n_layers):
+			bn_layer = getattr(self, "batchnorm_%d" % i)
+			print bn_layer.avg_var
+			entropy += F.sum(F.log(2 * math.e * math.pi * bn_layer.avg_var) / 2)
+
+		return entropy
 
 	def compute_output(self, x):
 		f = activations[self.activation_function]
@@ -253,9 +277,12 @@ class DeepGenerativeModel(chainer.Chain):
 			if self.batchnorm_before_activation == False:
 				u = getattr(self, "layer_%i" % i)(u)
 
-			output = f(u)
-			if self.apply_dropout:
-				output = F.dropout(output, train=not self.test)
+			if i == self.n_layers - 1:
+				output = F.sigmoid(u)
+			else:
+				output = f(u)
+				if self.apply_dropout:
+					output = F.dropout(output, train=not self.test)
 			chain.append(output)
 
 		return chain[-1]
@@ -271,9 +298,9 @@ class DeepEnergyModel(chainer.Chain):
 		self.n_layers = n_layers
 		self.activation_function = params.activation_function
 		self.apply_dropout = params.apply_dropout
-		self.apply_batchnorm = params.batchnorm_enabled
+		self.apply_batchnorm = params.energy_model_batchnorm_enabled
 		self.apply_batchnorm_to_input = params.energy_model_apply_batchnorm_to_input
-		self.batchnorm_before_activation = params.batchnorm_before_activation
+		self.batchnorm_before_activation = params.energy_model_batchnorm_before_activation
 
 		if params.gpu_enabled:
 			self.to_gpu()
@@ -302,18 +329,22 @@ class DeepEnergyModel(chainer.Chain):
 				u = getattr(self, "layer_%i" % i)(u)
 
 			output = f(u)
-			if self.apply_dropout:
-				output = F.dropout(output, train=not self.test)
+			if i == self.n_layers - 1:
+				pass
+			else:
+				if self.apply_dropout:
+					output = F.dropout(output, train=not self.test)
 			chain.append(output)
 
 		return chain[-1]
 
 	def compute_energy(self, x, features):
 		experts = self.experts(features)
+		xp = self.xp
 		print "experts"
-		print experts.data
+		print xp.amax(experts.data)
 		print "exp"
-		print F.exp(experts).data
+		print xp.amax(F.exp(experts).data)
 		experts = -F.log(1 + F.exp(experts))
 		print "log"
 		print experts.data
