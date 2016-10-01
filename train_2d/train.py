@@ -40,6 +40,7 @@ def main():
 	total_time = 0
 	for epoch in xrange(1, max_epoch):
 		sum_loss = 0
+		sum_loss_negative = 0
 		sum_kld = 0
 		epoch_time = time.time()
 
@@ -51,11 +52,8 @@ def main():
 			## sample from generator
 			x_negative = ddgm.generate_x(batchsize_negative)
 			## positive phase
-			loss_positive = ddgm.compute_positive_loss(x_positive)
-			ddgm.backprop_energy_model(loss_positive)
-			## negative phase
-			loss_negative = ddgm.compute_negative_loss(x_negative)
-			ddgm.backprop_energy_model(loss_negative)
+			loss = ddgm.compute_loss(x_positive, x_negative)
+			ddgm.backprop_energy_model(loss)
 
 			# train generative model
 			## sample from generator
@@ -64,7 +62,7 @@ def main():
 			## update parameters
 			ddgm.backprop_generative_model(kld)
 
-			sum_loss += float(loss_positive.data + loss_negative.data)
+			sum_loss += float(loss.data)
 			sum_kld += float(kld.data)
 			if t % 10 == 0:
 				sys.stdout.write("\rTraining in progress...({} / {})".format(t, n_trains_per_epoch))

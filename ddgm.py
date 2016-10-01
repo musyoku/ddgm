@@ -67,6 +67,32 @@ class Params():
 			if not hasattr(base, attr):
 				raise Exception("invalid parameter '{}'".format(attr))
 
+def sum_sqnorm(arr):
+	sq_sum = collections.defaultdict(float)
+	for x in arr:
+		with cuda.get_device(x) as dev:
+			x = x.ravel()
+			s = x.dot(x)
+			sq_sum[int(dev)] += s
+	return sum([float(i) for i in six.itervalues(sq_sum)])
+	
+class GradientClipping(object):
+	name = "GradientClipping"
+
+	def __init__(self, threshold):
+		self.threshold = threshold
+
+	def __call__(self, opt):
+		norm = np.sqrt(sum_sqnorm([p.grad for p in opt.target.params()]))
+		if norm == 0:
+			return
+		rate = self.threshold / norm
+		if rate < 1:
+			for param in opt.target.params():
+				grad = param.grad
+				with cuda.get_device(grad):
+					grad *= rate
+
 class DDGM():
 
 	def __init__(self, params):
@@ -111,20 +137,20 @@ class DDGM():
 	def setup_optimizers(self):
 		params = self.params
 		
-		opt = optimizers.Adam(alpha=params.learning_rate, beta1=params.gradient_momentum)
+		opt = optimizers.AdaGrad(lr=params.learning_rate)
 		opt.setup(self.energy_model)
 		if params.weight_decay > 0:
 			opt.add_hook(optimizer.WeightDecay(params.weight_decay))
 		if params.gradient_clipping > 0:
-			opt.add_hook(optimizer.GradientClipping(params.gradient_clipping))
+			opt.add_hook(GradientClipping(params.gradient_clipping))
 		self.optimizer_energy_model = opt
 		
-		opt = optimizers.Adam(alpha=params.learning_rate, beta1=params.gradient_momentum)
+		opt = optimizers.AdaGrad(lr=params.learning_rate)
 		opt.setup(self.generative_model)
 		if params.weight_decay > 0:
 			opt.add_hook(optimizer.WeightDecay(params.weight_decay))
 		if params.gradient_clipping > 0:
-			opt.add_hook(optimizer.GradientClipping(params.gradient_clipping))
+			opt.add_hook(GradientClipping(params.gradient_clipping))
 		self.optimizer_generative_model = opt
 
 	def update_laerning_rate(self, lr):
@@ -327,6 +353,8 @@ class DeepEnergyModel(chainer.Chain):
 			if self.apply_batchnorm:
 				if i == 0 and self.apply_batchnorm_to_input == True:
 					u = getattr(self, "batchnorm_%d" % i)(u, test=self.test)
+				elif i == self.n_layers - 1 and self.batchnorm_before_activation == True:
+					pass
 				else:
 					u = getattr(self, "batchnorm_%d" % i)(u, test=self.test)
 
@@ -348,7 +376,7 @@ class DeepEnergyModel(chainer.Chain):
 		xp = self.xp
 		# avoid overflow
 		# -log(1 + exp(x)) = -max(0, x) - log(1 + exp(-|x|)) = -softplus
-		experts = F.softplus(-feature_detector)
+		experts = -F.softplus(feature_detector)
 
 		sigma = 1.0
 		# energy = F.sum(x * x, axis=1) / sigma - F.reshape(self.b(x), (-1,)) + F.sum(experts, axis=1)

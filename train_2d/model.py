@@ -40,7 +40,7 @@ else:
 
 	params.wscale = 0.1
 	params.gradient_clipping = 5
-	params.gradient_momentum = 0.9
+	params.gradient_momentum = 0.1
 	params.weight_decay = 0
 	params.learning_rate = 0.0003
 	params.gpu_enabled = True if args.gpu_enabled == 1 else False
