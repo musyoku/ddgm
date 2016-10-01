@@ -18,7 +18,7 @@ def sample_from_data(images, batchsize, ndim_x):
 		x_batch[j] = img.reshape((ndim_x,))
 
 	# binalize
-	x_batch = binarize_data(x_batch)
+	# x_batch = binarize_data(x_batch)
 
 	return x_batch
 
@@ -28,7 +28,7 @@ def main():
 	
 	# settings
 	max_epoch = 1000
-	n_trains_per_epoch = 5000
+	n_trains_per_epoch = 1000
 	batchsize_positive = 100
 	batchsize_negative = 100
 

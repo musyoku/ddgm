@@ -38,11 +38,10 @@ else:
 	params.generative_model_batchnorm_before_activation = True
 	params.generative_model_batchnorm_enabled = False
 
-	params.wscale = 0.1
+	params.wscale = 1
 	params.gradient_clipping = 5
-	params.gradient_momentum = 0.1
 	params.weight_decay = 0
-	params.learning_rate = 0.0003
+	params.learning_rate = 0.001
 	params.gpu_enabled = True if args.gpu_enabled == 1 else False
 
 	params.check()

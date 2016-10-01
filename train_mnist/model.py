@@ -6,10 +6,10 @@ from ddgm import DDGM, Params
 
 # load params.json
 try:
-	os.mkdir(args.params_dir)
+	os.mkdir(args.model_dir)
 except:
 	pass
-filename = args.params_dir + "/{}".format(args.params_filename)
+filename = args.model_dir + "/params.json"
 if os.path.isfile(filename):
 	print "loading", filename
 	f = open(filename)
@@ -28,19 +28,18 @@ else:
 	params.apply_dropout = False
 
 	params.energy_model_num_experts = 128
-	params.energy_model_features_hidden_units = [500, 500]
+	params.energy_model_features_hidden_units = [600, 600]
 	params.energy_model_apply_batchnorm_to_input = False
-	params.energy_model_batchnorm_before_activation = True
-	params.energy_model_batchnorm_enabled = False
+	params.energy_model_batchnorm_before_activation = False
+	params.energy_model_batchnorm_enabled = True
 
-	params.generative_model_hidden_units = [500, 500]
+	params.generative_model_hidden_units = [600, 600]
 	params.generative_model_apply_batchnorm_to_input = False
-	params.generative_model_batchnorm_before_activation = True
-	params.generative_model_batchnorm_enabled = False
+	params.generative_model_batchnorm_before_activation = False
+	params.generative_model_batchnorm_enabled = True
 
-	params.wscale = 0.01
+	params.wscale = 1
 	params.gradient_clipping = 5
-	params.gradient_momentum = 0.9
 	params.weight_decay = 0
 	params.learning_rate = 0.0003
 	params.gpu_enabled = True if args.gpu_enabled == 1 else False

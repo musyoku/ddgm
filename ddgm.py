@@ -36,7 +36,6 @@ class Params():
 
 		self.wscale = 0.1
 		self.gradient_clipping = 10
-		self.gradient_momentum = 0.9
 		self.weight_decay = 0
 		self.learning_rate = 0.001
 		self.gpu_enabled = True
@@ -222,14 +221,6 @@ class DDGM():
 		energy_negative, experts_negative = self.compute_energy(x_batch_negative)
 		return F.sum(energy_positive) / self.get_batchsize(x_batch_positive) - F.sum(energy_negative) / self.get_batchsize(x_batch_negative)
 
-	def compute_positive_loss(self, x_batch_positive):
-		energy_positive, experts_positive = self.compute_energy(x_batch_positive)
-		return F.sum(energy_positive) / self.get_batchsize(x_batch_positive)
-
-	def compute_negative_loss(self, x_batch_negative):
-		energy_negative, experts_negative = self.compute_energy(x_batch_negative)
-		return -F.sum(energy_negative) / self.get_batchsize(x_batch_negative)
-
 	def load(self, dir=None):
 		if dir is None:
 			raise Exception()
@@ -353,8 +344,6 @@ class DeepEnergyModel(chainer.Chain):
 			if self.apply_batchnorm:
 				if i == 0 and self.apply_batchnorm_to_input == True:
 					u = getattr(self, "batchnorm_%d" % i)(u, test=self.test)
-				elif i == self.n_layers - 1 and self.batchnorm_before_activation == True:
-					pass
 				else:
 					u = getattr(self, "batchnorm_%d" % i)(u, test=self.test)
 
@@ -379,8 +368,7 @@ class DeepEnergyModel(chainer.Chain):
 		experts = -F.softplus(feature_detector)
 
 		sigma = 1.0
-		# energy = F.sum(x * x, axis=1) / sigma - F.reshape(self.b(x), (-1,)) + F.sum(experts, axis=1)
-		energy = F.sum(experts, axis=1)
+		energy = F.sum(x * x, axis=1) / sigma - F.reshape(self.b(x), (-1,)) + F.sum(experts, axis=1)
 		
 		return energy, experts
 

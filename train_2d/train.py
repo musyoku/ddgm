@@ -29,8 +29,8 @@ def main():
 	# settings
 	max_epoch = 1000
 	n_trains_per_epoch = 500
-	batchsize_positive = 100
-	batchsize_negative = 100
+	batchsize_positive = 1000
+	batchsize_negative = 1000
 
 	# seed
 	np.random.seed(args.seed)
@@ -49,17 +49,13 @@ def main():
 			x_positive = sample_from_data(batchsize_positive, params.ndim_x, 10)
 
 			# train energy model
-			## sample from generator
 			x_negative = ddgm.generate_x(batchsize_negative)
-			## positive phase
 			loss = ddgm.compute_loss(x_positive, x_negative)
 			ddgm.backprop_energy_model(loss)
 
 			# train generative model
-			## sample from generator
 			x_negative = ddgm.generate_x(batchsize_negative)
 			kld = ddgm.compute_kld_between_generator_and_energy_model(x_negative)
-			## update parameters
 			ddgm.backprop_generative_model(kld)
 
 			sum_loss += float(loss.data)
