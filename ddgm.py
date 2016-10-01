@@ -196,6 +196,14 @@ class DDGM():
 		energy_negative, experts_negative = self.compute_energy(x_batch_negative)
 		return F.sum(energy_positive) / self.get_batchsize(x_batch_positive) - F.sum(energy_negative) / self.get_batchsize(x_batch_negative)
 
+	def compute_positive_loss(self, x_batch_positive):
+		energy_positive, experts_positive = self.compute_energy(x_batch_positive)
+		return F.sum(energy_positive) / self.get_batchsize(x_batch_positive)
+
+	def compute_negative_loss(self, x_batch_negative):
+		energy_negative, experts_negative = self.compute_energy(x_batch_negative)
+		return -F.sum(energy_negative) / self.get_batchsize(x_batch_negative)
+
 	def load(self, dir=None):
 		if dir is None:
 			raise Exception()
@@ -275,7 +283,7 @@ class DeepGenerativeModel(chainer.Chain):
 				u = getattr(self, "layer_%i" % i)(u)
 
 			if i == self.n_layers - 1:
-				output = F.sigmoid(u)
+				output = u
 			else:
 				output = f(u)
 				if self.apply_dropout:
@@ -326,7 +334,7 @@ class DeepEnergyModel(chainer.Chain):
 				u = getattr(self, "layer_%i" % i)(u)
 
 			if i == self.n_layers - 1:
-				output = f(u)
+				output = u
 			else:
 				output = f(u)
 				if self.apply_dropout:
@@ -340,10 +348,12 @@ class DeepEnergyModel(chainer.Chain):
 		xp = self.xp
 		# avoid overflow
 		# -log(1 + exp(x)) = -max(0, x) - log(1 + exp(-|x|)) = -softplus
-		experts = -F.softplus(feature_detector)
+		experts = F.softplus(-feature_detector)
 
 		sigma = 1.0
-		energy = F.reshape(F.sum(x * x, axis=1), (-1, 1)) / sigma - self.b(x) + F.reshape(F.sum(experts, axis=1), (-1, 1))
+		# energy = F.sum(x * x, axis=1) / sigma - F.reshape(self.b(x), (-1,)) + F.sum(experts, axis=1)
+		energy = F.sum(experts, axis=1)
+		
 		return energy, experts
 
 	def __call__(self, x, test=False):

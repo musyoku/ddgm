@@ -28,7 +28,7 @@ def sample_from_data(batchsize, n_dim, n_labels):
 def main():
 	# settings
 	max_epoch = 1000
-	n_trains_per_epoch = 1000
+	n_trains_per_epoch = 500
 	batchsize_positive = 100
 	batchsize_negative = 100
 
@@ -50,18 +50,21 @@ def main():
 			# train energy model
 			## sample from generator
 			x_negative = ddgm.generate_x(batchsize_negative)
-			loss = ddgm.compute_loss(x_positive, x_negative)
-			## update parameters
-			ddgm.backprop_energy_model(loss)
+			## positive phase
+			loss_positive = ddgm.compute_positive_loss(x_positive)
+			ddgm.backprop_energy_model(loss_positive)
+			## negative phase
+			loss_negative = ddgm.compute_negative_loss(x_negative)
+			ddgm.backprop_energy_model(loss_negative)
 
 			# train generative model
 			## sample from generator
 			x_negative = ddgm.generate_x(batchsize_negative)
 			kld = ddgm.compute_kld_between_generator_and_energy_model(x_negative)
 			## update parameters
-			# ddgm.backprop_generative_model(kld)
+			ddgm.backprop_generative_model(kld)
 
-			sum_loss += float(loss.data)
+			sum_loss += float(loss_positive.data + loss_negative.data)
 			sum_kld += float(kld.data)
 			if t % 10 == 0:
 				sys.stdout.write("\rTraining in progress...({} / {})".format(t, n_trains_per_epoch))
@@ -76,14 +79,18 @@ def main():
 
 
 		# validation
-		# x_positive = sample_from_data(images, 500, params.ndim_x)
-		# energy, experts = ddgm.compute_energy(x_positive, test=True)
-		# energy.to_cpu()
-		# print "energy (pos): ", np.mean(energy.data) 
-		# x_negative = ddgm.generate_x(500)
-		# energy, experts = ddgm.compute_energy(x_negative, test=True)
-		# energy.to_cpu()
-		# print "energy (neg): ", np.mean(energy.data) 
+		x_positive = sample_from_data(batchsize_positive, params.ndim_x, 10)
+		energy, experts = ddgm.compute_energy(x_positive, test=True)
+		energy.to_cpu()
+		experts.to_cpu()
+		print "energy (pos):", np.mean(energy.data) 
+		# print "logP(x):", -np.sum(experts.data, axis=1)
+		x_negative = ddgm.generate_x(batchsize_negative)
+		energy, experts = ddgm.compute_energy(x_negative, test=True)
+		energy.to_cpu()
+		experts.to_cpu()
+		print "energy (neg): ", np.mean(energy.data) 
+		# print "logP(x):", -np.sum(experts.data, axis=1)
 
 if __name__ == '__main__':
 	main()

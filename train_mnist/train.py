@@ -59,7 +59,7 @@ def main():
 			x_negative = ddgm.generate_x(batchsize_negative)
 			kld = ddgm.compute_kld_between_generator_and_energy_model(x_negative)
 			## update parameters
-			# ddgm.backprop_generative_model(kld)
+			ddgm.backprop_generative_model(kld)
 
 			sum_loss += float(loss.data)
 			sum_kld += float(kld.data)

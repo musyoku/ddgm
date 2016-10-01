@@ -38,7 +38,7 @@ else:
 	params.generative_model_batchnorm_before_activation = True
 	params.generative_model_batchnorm_enabled = False
 
-	params.wscale = 0.01
+	params.wscale = 0.1
 	params.gradient_clipping = 5
 	params.gradient_momentum = 0.9
 	params.weight_decay = 0
