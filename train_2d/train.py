@@ -1,6 +1,6 @@
 from scipy.io import wavfile
 import numpy as np
-import os, sys, time
+import os, sys, time, random, math
 from chainer import cuda
 from chainer import functions as F
 sys.path.append(os.path.split(os.getcwd())[0])
@@ -9,26 +9,26 @@ from args import args
 from dataset import binarize_data, load_images
 import dataset
 
-def sample_from_data(images, batchsize, ndim_x):
-	x_batch = np.zeros((batchsize, ndim_x), dtype=np.float32)
-	indices = np.random.choice(np.arange(len(images), dtype=np.int32), size=batchsize, replace=False)
-	for j in range(batchsize):
-		data_index = indices[j]
-		img = images[data_index]
-		x_batch[j] = img.reshape((ndim_x,))
+def sample_from_data(batchsize, n_dim, n_labels):
+	def sample(label, n_labels):
+		uni = np.random.uniform(0.0, 1.0) / float(n_labels) + float(label) / float(n_labels)
+		r = math.sqrt(uni) * 3.0
+		rad = np.pi * 4.0 * math.sqrt(uni)
+		x = r * math.cos(rad)
+		y = r * math.sin(rad)
+		return np.array([x, y]).reshape((2,))
 
-	# binalize
-	x_batch = binarize_data(x_batch)
-
-	return x_batch
+	z = np.zeros((batchsize, n_dim), dtype=np.float32)
+	for batch in xrange(batchsize):
+		for zi in xrange(n_dim / 2):
+			z[batch, zi*2:zi*2+2] = sample(random.randint(0, n_labels - 1), n_labels)
+	
+	return z
 
 def main():
-	# load MNIST images
-	images = load_images(args.train_image_dir)
-	
 	# settings
 	max_epoch = 1000
-	n_trains_per_epoch = 5000
+	n_trains_per_epoch = 1000
 	batchsize_positive = 100
 	batchsize_negative = 100
 
@@ -45,7 +45,7 @@ def main():
 
 		for t in xrange(n_trains_per_epoch):
 			# sample from data distribution
-			x_positive = sample_from_data(images, batchsize_positive, params.ndim_x)
+			x_positive = sample_from_data(batchsize_positive, params.ndim_x, 10)
 
 			# train energy model
 			## sample from generator

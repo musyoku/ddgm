@@ -22,18 +22,18 @@ if os.path.isfile(filename):
 	params.gpu_enabled = True if args.gpu_enabled == 1 else False
 else:
 	params = Params()
-	params.ndim_x = 28 * 28
-	params.ndim_z = 10
+	params.ndim_x = 2
+	params.ndim_z = 4
 	params.activation_function = "elu"
 	params.apply_dropout = False
 
-	params.energy_model_num_experts = 128
-	params.energy_model_features_hidden_units = [500, 500]
+	params.energy_model_num_experts = 4
+	params.energy_model_features_hidden_units = [128, 128]
 	params.energy_model_apply_batchnorm_to_input = False
 	params.energy_model_batchnorm_before_activation = True
 	params.energy_model_batchnorm_enabled = False
 
-	params.generative_model_hidden_units = [500, 500]
+	params.generative_model_hidden_units = [128, 128]
 	params.generative_model_apply_batchnorm_to_input = False
 	params.generative_model_batchnorm_before_activation = True
 	params.generative_model_batchnorm_enabled = False

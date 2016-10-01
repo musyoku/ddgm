@@ -175,7 +175,7 @@ class DDGM():
 
 	def generate_x_from_z(self, z_batch, test=False):
 		z_batch = self.to_variable(z_batch)
-		return self.generative_model(z_batch)
+		return self.generative_model(z_batch, test=test)
 
 	def backprop_energy_model(self, loss):
 		self.zero_grads()
