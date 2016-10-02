@@ -175,6 +175,14 @@ class DDGM():
 				x.to_gpu()
 		return x
 
+	def to_numpy(self, x):
+		if isinstance(x, Variable) == True:
+			x.to_cpu()
+			x = x.data
+		if isinstance(x, cuda.ndarray) == True:
+			x = cuda.to_cpu(x)
+		return x
+
 	def get_batchsize(self, x):
 		if isinstance(x, Variable):
 			return x.data.shape[0]
@@ -195,12 +203,15 @@ class DDGM():
 		# z_batch = np.random.normal(0, 1, (batchsize, self.params.ndim_z)).astype(np.float32)
 		return z_batch
 
-	def generate_x(self, batchsize=1, test=False):
-		return self.generate_x_from_z(self.sample_z(batchsize), test=test)
+	def generate_x(self, batchsize=1, test=False, as_numpy=False):
+		return self.generate_x_from_z(self.sample_z(batchsize), test=test, as_numpy=as_numpy)
 
-	def generate_x_from_z(self, z_batch, test=False):
+	def generate_x_from_z(self, z_batch, test=False, as_numpy=False):
 		z_batch = self.to_variable(z_batch)
-		return self.generative_model(z_batch, test=test)
+		x_batch = self.generative_model(z_batch, test=test)
+		if as_numpy:
+			return self.to_numpy(x_batch)
+		return x_batch
 
 	def backprop_energy_model(self, loss):
 		self.zero_grads()
@@ -358,7 +369,7 @@ class DeepEnergyModel(chainer.Chain):
 			output = f(u)
 			if self.apply_dropout:
 				output = F.dropout(output, train=not self.test)
-				
+
 			chain.append(output)
 
 		return chain[-1]

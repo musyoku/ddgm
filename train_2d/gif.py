@@ -1,6 +1,6 @@
 from scipy.io import wavfile
 import numpy as np
-import os, sys, time, random, math
+import os, sys, time, random, math, pylab
 from chainer import cuda
 from chainer import functions as F
 sys.path.append(os.path.split(os.getcwd())[0])
@@ -25,17 +25,35 @@ def sample_from_data(batchsize, n_dim, n_labels):
 	
 	return z
 
+def plot(z, color="blue", s=40):
+	for n in xrange(z.shape[0]):
+		result = pylab.scatter(z[n, 0], z[n, 1], s=s, marker="o", edgecolors="none", color=color)
+	# pylab.xlabel("z1")
+	# pylab.ylabel("z2")
+	pylab.xticks(pylab.arange(-4, 5))
+	pylab.yticks(pylab.arange(-4, 5))
+
+
 def main():
+	try:
+		os.mkdir(args.plot_dir)
+	except:
+		pass
+
 	# settings
 	max_epoch = 1000
-	n_trains_per_epoch = 500
+	n_trains_per_epoch = 100
 	batchsize_positive = 1000
 	batchsize_negative = 1000
+	plotsize = 300
 
 	# seed
 	np.random.seed(args.seed)
 	if params.gpu_enabled:
-	    cuda.cupy.random.seed(args.seed)
+		cuda.cupy.random.seed(args.seed)
+
+	# z are fixed
+	fixed_z = ddgm.sample_z(plotsize)
 
 	total_time = 0
 	for epoch in xrange(1, max_epoch):
@@ -71,20 +89,19 @@ def main():
 		sys.stdout.flush()
 		ddgm.save(args.model_dir)
 
+		# init
+		fig = pylab.gcf()
+		fig.set_size_inches(20.0, 16.0)
+		pylab.clf()
 
-		# validation
 		x_positive = sample_from_data(batchsize_positive, params.ndim_x, 10)
-		energy, experts = ddgm.compute_energy(x_positive, test=True)
-		energy.to_cpu()
-		experts.to_cpu()
-		print "avg energy (pos):", np.mean(energy.data) 
-		# print "logP(x):", -np.sum(experts.data, axis=1)
-		x_negative = ddgm.generate_x(batchsize_negative)
-		energy, experts = ddgm.compute_energy(x_negative, test=True)
-		energy.to_cpu()
-		experts.to_cpu()
-		print "avg energy (neg): ", np.mean(energy.data) 
-		# print "logP(x):", -np.sum(experts.data, axis=1)
+		plot(x_positive, color="#bec3c7", s=40)
+		x_negative = ddgm.generate_x_from_z(fixed_z, as_numpy=True)
+		plot(x_negative, color="#e84c3d", s=80)
+
+		# save
+		pylab.savefig("{}/{}.png".format(args.plot_dir, epoch))
+		
 
 if __name__ == '__main__':
 	main()
