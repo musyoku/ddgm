@@ -25,12 +25,12 @@ class Params():
 
 		self.energy_model_num_experts = 128
 		self.energy_model_features_hidden_units = [500]
-		self.energy_model_apply_batchnorm_to_input = True
+		self.energy_model_batchnorm_to_input = True
 		self.energy_model_batchnorm_before_activation = False
 		self.energy_model_batchnorm_enabled = True
 
 		self.generative_model_hidden_units = [500]
-		self.generative_model_apply_batchnorm_to_input = False
+		self.generative_model_batchnorm_to_input = False
 		self.generative_model_batchnorm_before_activation = False
 		self.generative_model_batchnorm_enabled = True
 
@@ -254,8 +254,8 @@ class DeepGenerativeModel(chainer.Chain):
 		self.n_layers = n_layers
 		self.activation_function = params.activation_function
 		self.apply_dropout = params.apply_dropout
-		self.apply_batchnorm = params.generative_model_batchnorm_enabled
-		self.apply_batchnorm_to_input = params.generative_model_apply_batchnorm_to_input
+		self.batchnorm_enabled = params.generative_model_batchnorm_enabled
+		self.batchnorm_to_input = params.generative_model_batchnorm_to_input
 		self.batchnorm_before_activation = params.generative_model_batchnorm_before_activation
 
 		if params.gpu_enabled:
@@ -268,7 +268,7 @@ class DeepGenerativeModel(chainer.Chain):
 	def compute_entropy(self):
 		entropy = 0
 
-		if self.apply_batchnorm == False:
+		if self.batchnorm_enabled == False:
 			return entropy
 
 		for i in range(self.n_layers):
@@ -288,11 +288,13 @@ class DeepGenerativeModel(chainer.Chain):
 			if self.batchnorm_before_activation:
 				u = getattr(self, "layer_%i" % i)(u)
 
-			if self.apply_batchnorm:
-				if i == 0 and self.apply_batchnorm_to_input == True:
-					u = getattr(self, "batchnorm_%d" % i)(u, test=self.test)
-				elif i == self.n_layers - 1 and self.batchnorm_before_activation == True:
-					pass
+			if self.batchnorm_enabled:
+				if i == 0:
+					if self.batchnorm_to_input == True:
+						u = getattr(self, "batchnorm_%d" % i)(u, test=self.test)
+				elif i == self.n_layers - 1:
+					if self.batchnorm_before_activation == True:
+						pass
 				else:
 					u = getattr(self, "batchnorm_%d" % i)(u, test=self.test)
 
@@ -300,7 +302,7 @@ class DeepGenerativeModel(chainer.Chain):
 				u = getattr(self, "layer_%i" % i)(u)
 
 			if i == self.n_layers - 1:
-				output = u
+				output = F.sigmoid(u)
 			else:
 				output = f(u)
 				if self.apply_dropout:
@@ -320,8 +322,8 @@ class DeepEnergyModel(chainer.Chain):
 		self.n_layers = n_layers
 		self.activation_function = params.activation_function
 		self.apply_dropout = params.apply_dropout
-		self.apply_batchnorm = params.energy_model_batchnorm_enabled
-		self.apply_batchnorm_to_input = params.energy_model_apply_batchnorm_to_input
+		self.batchnorm_enabled = params.energy_model_batchnorm_enabled
+		self.batchnorm_to_input = params.energy_model_batchnorm_to_input
 		self.batchnorm_before_activation = params.energy_model_batchnorm_before_activation
 
 		if params.gpu_enabled:
@@ -341,9 +343,10 @@ class DeepEnergyModel(chainer.Chain):
 			if self.batchnorm_before_activation:
 				u = getattr(self, "layer_%i" % i)(u)
 
-			if self.apply_batchnorm:
-				if i == 0 and self.apply_batchnorm_to_input == True:
-					u = getattr(self, "batchnorm_%d" % i)(u, test=self.test)
+			if self.batchnorm_enabled:
+				if i == 0:
+					if self.batchnorm_to_input == True:
+						u = getattr(self, "batchnorm_%d" % i)(u, test=self.test)
 				else:
 					u = getattr(self, "batchnorm_%d" % i)(u, test=self.test)
 
@@ -351,7 +354,7 @@ class DeepEnergyModel(chainer.Chain):
 				u = getattr(self, "layer_%i" % i)(u)
 
 			if i == self.n_layers - 1:
-				output = u
+				output = f(u)
 			else:
 				output = f(u)
 				if self.apply_dropout:

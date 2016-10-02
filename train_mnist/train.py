@@ -18,7 +18,7 @@ def sample_from_data(images, batchsize, ndim_x):
 		x_batch[j] = img.reshape((ndim_x,))
 
 	# binalize
-	# x_batch = binarize_data(x_batch)
+	x_batch = binarize_data(x_batch)
 
 	return x_batch
 
