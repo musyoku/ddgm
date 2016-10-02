@@ -25,7 +25,7 @@ def tile_x(x, image_width=28, image_height=28, image_channel=1, dir=None, filena
 		pylab.axis("off")
 	pylab.savefig("{}/{}.png".format(dir, filename))
 
-def plot_z(z, dir=None, filename="z"):
+def plot_z(z, dir=None, filename="z", xticks_range=None, yticks_range=None):
 	if dir is None:
 		raise Exception()
 	try:
@@ -39,5 +39,9 @@ def plot_z(z, dir=None, filename="z"):
 		result = pylab.scatter(z[n, 0], z[n, 1], s=40, marker="o", edgecolors='none')
 	pylab.xlabel("z1")
 	pylab.ylabel("z2")
+	if xticks_range is not None:
+		pylab.xticks(pylab.arange(-xticks_range, xticks_range + 1))
+	if yticks_range is not None:
+		pylab.yticks(pylab.arange(-yticks_range, yticks_range + 1))
 	pylab.savefig("{}/{}.png".format(dir, filename))
 

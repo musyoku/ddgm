@@ -6,10 +6,10 @@ from ddgm import DDGM, Params
 
 # load params.json
 try:
-	os.mkdir(args.params_dir)
+	os.mkdir(args.model_dir)
 except:
 	pass
-filename = args.params_dir + "/{}".format(args.params_filename)
+filename = args.model_dir + "/{}".format(args.params_filename)
 if os.path.isfile(filename):
 	print "loading", filename
 	f = open(filename)
@@ -29,14 +29,14 @@ else:
 
 	params.energy_model_num_experts = 4
 	params.energy_model_features_hidden_units = [128, 128]
-	params.energy_model_apply_batchnorm_to_input = False
-	params.energy_model_batchnorm_before_activation = True
+	params.energy_model_batchnorm_to_input = False
+	params.energy_model_batchnorm_before_activation = False
 	params.energy_model_batchnorm_enabled = False
 
 	params.generative_model_hidden_units = [128, 128]
-	params.generative_model_apply_batchnorm_to_input = False
-	params.generative_model_batchnorm_before_activation = True
-	params.generative_model_batchnorm_enabled = False
+	params.generative_model_batchnorm_to_input = False
+	params.generative_model_batchnorm_before_activation = False
+	params.generative_model_batchnorm_enabled = True
 
 	params.wscale = 1
 	params.gradient_clipping = 5

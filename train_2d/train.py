@@ -11,7 +11,7 @@ import dataset
 
 def sample_from_data(batchsize, n_dim, n_labels):
 	def sample(label, n_labels):
-		uni = np.random.uniform(0.0, 1.0) / float(n_labels) + float(label) / float(n_labels)
+		uni = np.random.uniform(0.0, 3.0) / float(n_labels) + float(label) / float(n_labels)
 		r = math.sqrt(uni) * 3.0
 		rad = np.pi * 4.0 * math.sqrt(uni)
 		x = r * math.cos(rad)
@@ -77,13 +77,13 @@ def main():
 		energy, experts = ddgm.compute_energy(x_positive, test=True)
 		energy.to_cpu()
 		experts.to_cpu()
-		print "energy (pos):", np.mean(energy.data) 
+		print "avg energy (pos):", np.mean(energy.data) 
 		# print "logP(x):", -np.sum(experts.data, axis=1)
 		x_negative = ddgm.generate_x(batchsize_negative)
 		energy, experts = ddgm.compute_energy(x_negative, test=True)
 		energy.to_cpu()
 		experts.to_cpu()
-		print "energy (neg): ", np.mean(energy.data) 
+		print "avg energy (neg): ", np.mean(energy.data) 
 		# print "logP(x):", -np.sum(experts.data, axis=1)
 
 if __name__ == '__main__':

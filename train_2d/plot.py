@@ -27,13 +27,13 @@ def main():
 	except:
 		pass
 
-	x_positive = sample_from_data(100, 2, 10)
-	visualizer.plot_z(x_positive, dir=args.plot_dir, filename="positive")
+	x_positive = sample_from_data(1000, 2, 10)
+	visualizer.plot_z(x_positive, dir=args.plot_dir, filename="positive", xticks_range=4, yticks_range=4)
 
-	x_negative = ddgm.generate_x(100)
+	x_negative = ddgm.generate_x(1000, test=True)
 	if params.gpu_enabled:
 		x_negative.to_cpu()
-	visualizer.plot_z(x_negative.data, dir=args.plot_dir, filename="negative")
+	visualizer.plot_z(x_negative.data, dir=args.plot_dir, filename="negative", xticks_range=4, yticks_range=4)
 
 if __name__ == '__main__':
 	main()

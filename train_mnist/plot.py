@@ -10,7 +10,7 @@ def main():
 	except:
 		pass
 
-	x_negative = ddgm.generate_x(100)
+	x_negative = ddgm.generate_x(100, test=True)
 	if params.gpu_enabled:
 		x_negative.to_cpu()
 	visualizer.tile_x(x_negative.data, dir=args.plot_dir)

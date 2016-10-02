@@ -214,7 +214,8 @@ class DDGM():
 
 	def compute_kld_between_generator_and_energy_model(self, x_batch_negative):
 		energy_negative, experts_negative = self.compute_energy(x_batch_negative)
-		return F.sum(energy_negative) / self.get_batchsize(x_batch_negative)
+		entropy = self.generative_model.compute_entropy()
+		return F.sum(energy_negative) / self.get_batchsize(x_batch_negative) - entropy
 
 	def compute_loss(self, x_batch_positive, x_batch_negative):
 		energy_positive, experts_positive = self.compute_energy(x_batch_positive)
@@ -272,9 +273,8 @@ class DeepGenerativeModel(chainer.Chain):
 			return entropy
 
 		for i in range(self.n_layers):
-			bn_layer = getattr(self, "batchnorm_%d" % i)
-			print bn_layer.avg_var
-			entropy += F.sum(F.log(2 * math.e * math.pi * bn_layer.avg_var) / 2)
+			bn = getattr(self, "batchnorm_%d" % i)
+			entropy += F.sum(F.log(2 * math.e * math.pi * bn.gamma ** 2 + 1e-8) / 2)
 
 		return entropy
 
@@ -289,20 +289,21 @@ class DeepGenerativeModel(chainer.Chain):
 				u = getattr(self, "layer_%i" % i)(u)
 
 			if self.batchnorm_enabled:
+				bn = getattr(self, "batchnorm_%d" % i)
 				if i == 0:
 					if self.batchnorm_to_input == True:
-						u = getattr(self, "batchnorm_%d" % i)(u, test=self.test)
+						u = bn(u, test=self.test)
 				elif i == self.n_layers - 1:
-					if self.batchnorm_before_activation == True:
-						pass
+					if self.batchnorm_before_activation == False:
+						u = bn(u, test=self.test)
 				else:
-					u = getattr(self, "batchnorm_%d" % i)(u, test=self.test)
+					u = bn(u, test=self.test)
 
 			if self.batchnorm_before_activation == False:
 				u = getattr(self, "layer_%i" % i)(u)
 
 			if i == self.n_layers - 1:
-				output = F.sigmoid(u)
+				output = u
 			else:
 				output = f(u)
 				if self.apply_dropout:
@@ -344,21 +345,20 @@ class DeepEnergyModel(chainer.Chain):
 				u = getattr(self, "layer_%i" % i)(u)
 
 			if self.batchnorm_enabled:
+				bn = getattr(self, "batchnorm_%d" % i)
 				if i == 0:
 					if self.batchnorm_to_input == True:
-						u = getattr(self, "batchnorm_%d" % i)(u, test=self.test)
+						u = bn(u, test=self.test)
 				else:
-					u = getattr(self, "batchnorm_%d" % i)(u, test=self.test)
+					u = bn(u, test=self.test)
 
 			if self.batchnorm_before_activation == False:
 				u = getattr(self, "layer_%i" % i)(u)
 
-			if i == self.n_layers - 1:
-				output = f(u)
-			else:
-				output = f(u)
-				if self.apply_dropout:
-					output = F.dropout(output, train=not self.test)
+			output = f(u)
+			if self.apply_dropout:
+				output = F.dropout(output, train=not self.test)
+				
 			chain.append(output)
 
 		return chain[-1]
