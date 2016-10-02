@@ -33,7 +33,7 @@ def plot_z(z, dir=None, filename="z", xticks_range=None, yticks_range=None):
 	except:
 		pass
 	fig = pylab.gcf()
-	fig.set_size_inches(20.0, 16.0)
+	fig.set_size_inches(16.0, 16.0)
 	pylab.clf()
 	for n in xrange(z.shape[0]):
 		result = pylab.scatter(z[n, 0], z[n, 1], s=40, marker="o", edgecolors='none')

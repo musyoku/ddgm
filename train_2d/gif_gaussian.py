@@ -36,6 +36,9 @@ def sample_from_gaussian_mixture(batchsize, n_dim, n_labels):
 def plot(z, color="blue", s=40):
 	for n in xrange(z.shape[0]):
 		result = pylab.scatter(z[n, 0], z[n, 1], s=s, marker="o", edgecolors="none", color=color)
+	ax = pylab.subplot(111)
+	ax.set_xlim(-3, 3)
+	ax.set_ylim(-3, 3)
 	pylab.xticks(pylab.arange(-3, 4))
 	pylab.yticks(pylab.arange(-3, 4))
 
@@ -59,7 +62,7 @@ def main():
 		cuda.cupy.random.seed(args.seed)
 
 	fixed_z = ddgm.sample_z(plotsize)
-	fixed_target = sample_from_gaussian_mixture(500, params.ndim_x, 10)
+	fixed_target = sample_from_gaussian_mixture(500, params.ndim_x, 5)
 
 	total_time = 0
 	for epoch in xrange(1, max_epoch):
@@ -70,7 +73,7 @@ def main():
 
 		for t in xrange(n_trains_per_epoch):
 			# sample from data distribution
-			x_positive = sample_from_gaussian_mixture(batchsize_positive, params.ndim_x, 10)
+			x_positive = sample_from_gaussian_mixture(batchsize_positive, params.ndim_x, 5)
 
 			# train energy model
 			x_negative = ddgm.generate_x(batchsize_negative)
@@ -97,14 +100,14 @@ def main():
 
 		# init
 		fig = pylab.gcf()
-		fig.set_size_inches(20.0, 16.0)
+		fig.set_size_inches(8.0, 8.0)
 		pylab.clf()
 
-		plot(fixed_target, color="#bec3c7", s=40)
-		plot(ddgm.generate_x_from_z(fixed_z, as_numpy=True), color="#e84c3d", s=80)
+		plot(fixed_target, color="#bec3c7", s=20)
+		plot(ddgm.generate_x_from_z(fixed_z, as_numpy=True, test=True), color="#e84c3d", s=40)
 
 		# save
-		pylab.savefig("{}/{}.png".format(args.plot_dir, epoch))
+		pylab.savefig("{}/{}.png".format(args.plot_dir, 100000 + epoch))
 		
 
 if __name__ == '__main__':

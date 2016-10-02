@@ -92,14 +92,14 @@ def main():
 
 		# init
 		fig = pylab.gcf()
-		fig.set_size_inches(20.0, 16.0)
+		fig.set_size_inches(8.0, 8.0)
 		pylab.clf()
 
-		plot(fixed_target, color="#bec3c7", s=40)
-		plot(ddgm.generate_x_from_z(fixed_z, as_numpy=True), color="#e84c3d", s=80)
+		plot(fixed_target, color="#bec3c7", s=20)
+		plot(ddgm.generate_x_from_z(fixed_z, as_numpy=True, test=True), color="#e84c3d", s=40)
 
 		# save
-		pylab.savefig("{}/{}.png".format(args.plot_dir, epoch))
+		pylab.savefig("{}/{}.png".format(args.plot_dir, 100000 + epoch))
 		
 
 if __name__ == '__main__':

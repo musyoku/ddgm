@@ -28,14 +28,15 @@ else:
 	params.apply_dropout = False
 
 	params.energy_model_num_experts = 128
-	params.energy_model_features_hidden_units = [600, 600]
+	params.energy_model_features_hidden_units = [1200, 1200]
 	params.energy_model_batchnorm_to_input = False
-	params.energy_model_batchnorm_before_activation = False
-	params.energy_model_batchnorm_enabled = False
+	params.energy_model_batchnorm_before_activation = True
+	params.energy_model_batchnorm_enabled = True
+	params.energy_model_apply_acitivation_function_to_features = True
 
-	params.generative_model_hidden_units = [600, 600]
+	params.generative_model_hidden_units = [1200, 1200]
 	params.generative_model_batchnorm_to_input = False
-	params.generative_model_batchnorm_before_activation = False
+	params.generative_model_batchnorm_before_activation = True
 	params.generative_model_batchnorm_enabled = True
 
 	params.wscale = 1

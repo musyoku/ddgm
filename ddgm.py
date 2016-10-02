@@ -28,6 +28,7 @@ class Params():
 		self.energy_model_batchnorm_to_input = True
 		self.energy_model_batchnorm_before_activation = False
 		self.energy_model_batchnorm_enabled = True
+		self.energy_model_apply_acitivation_function_to_features = True
 
 		self.generative_model_hidden_units = [500]
 		self.generative_model_batchnorm_to_input = False
@@ -319,6 +320,7 @@ class DeepGenerativeModel(chainer.Chain):
 				output = f(u)
 				if self.apply_dropout:
 					output = F.dropout(output, train=not self.test)
+
 			chain.append(output)
 
 		return chain[-1]
@@ -337,6 +339,7 @@ class DeepEnergyModel(chainer.Chain):
 		self.batchnorm_enabled = params.energy_model_batchnorm_enabled
 		self.batchnorm_to_input = params.energy_model_batchnorm_to_input
 		self.batchnorm_before_activation = params.energy_model_batchnorm_before_activation
+		self.apply_fn_to_features = params.energy_model_apply_acitivation_function_to_features
 
 		if params.gpu_enabled:
 			self.to_gpu()
@@ -366,9 +369,15 @@ class DeepEnergyModel(chainer.Chain):
 			if self.batchnorm_before_activation == False:
 				u = getattr(self, "layer_%i" % i)(u)
 
-			output = f(u)
-			if self.apply_dropout:
-				output = F.dropout(output, train=not self.test)
+			if i == self.n_layers - 1:
+				if self.apply_fn_to_features:
+					output = f(u)
+				else:
+					output = u
+			else:
+				output = f(u)
+				if self.apply_dropout:
+					output = F.dropout(output, train=not self.test)
 
 			chain.append(output)
 
