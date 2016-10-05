@@ -24,7 +24,7 @@ class Params():
 		self.distribution_x = "universal"	# universal or sigmoid or tanh
 
 		self.energy_model_num_experts = 128
-		self.energy_model_features_hidden_units = [500]
+		self.energy_model_feature_extractor_hidden_units = [500]
 		self.energy_model_batchnorm_to_input = True
 		# True:  y = f(BN(W*x + b))
 		# False: y = f(W*BN(x) + b))
@@ -110,8 +110,8 @@ class DDGM():
 
 		# deep energy model
 		attributes = {}
-		units = [(params.ndim_x, params.energy_model_features_hidden_units[0])]
-		units += zip(params.energy_model_features_hidden_units[:-1], params.energy_model_features_hidden_units[1:])
+		units = [(params.ndim_x, params.energy_model_feature_extractor_hidden_units[0])]
+		units += zip(params.energy_model_feature_extractor_hidden_units[:-1], params.energy_model_feature_extractor_hidden_units[1:])
 		for i, (n_in, n_out) in enumerate(units):
 			attributes["layer_%i" % i] = L.Linear(n_in, n_out, wscale=params.energy_model_wscale)
 			if params.energy_model_batchnorm_before_activation:
@@ -120,7 +120,7 @@ class DDGM():
 				attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
 
 		attributes["b"] = L.Linear(params.ndim_x, 1, wscale=params.energy_model_wscale, nobias=True)
-		attributes["feature_detector"] = L.Linear(params.energy_model_features_hidden_units[-1], params.energy_model_num_experts, wscale=params.energy_model_wscale)
+		attributes["feature_detector"] = L.Linear(params.energy_model_feature_extractor_hidden_units[-1], params.energy_model_num_experts, wscale=params.energy_model_wscale)
 
 		self.energy_model = DeepEnergyModel(params, n_layers=len(units), **attributes)
 
@@ -304,9 +304,9 @@ class DeepGenerativeModel(chainer.Chain):
 
 		return entropy
 
-	def compute_output(self, x):
+	def compute_output(self, z):
 		f = activations[self.activation_function]
-		chain = [x]
+		chain = [z]
 
 		for i in range(self.n_layers):
 			u = chain[-1]
@@ -339,19 +339,19 @@ class DeepGenerativeModel(chainer.Chain):
 
 		return chain[-1]
 
-	def __call__(self, x, test=False):
+	def __call__(self, z, test=False):
 		self.test = test
-		return self.compute_output(x)
+		return self.compute_output(z)
 
 class SigmoidDeepGenerativeModel(DeepGenerativeModel):
-	def __call__(self, x, test=False):
+	def __call__(self, z, test=False):
 		self.test = test
-		return F.sigmoid(self.compute_output(x))
+		return F.sigmoid(self.compute_output(z))
 
 class TanhDeepGenerativeModel(DeepGenerativeModel):
-	def __call__(self, x, test=False):
+	def __call__(self, z, test=False):
 		self.test = test
-		return F.tanh(self.compute_output(x))
+		return F.tanh(self.compute_output(z))
 
 class DeepEnergyModel(chainer.Chain):
 	def __init__(self, params, n_layers, **layers):

@@ -28,7 +28,7 @@ else:
 	params.distribution_x = "binomial"
 
 	params.energy_model_num_experts = 128
-	params.energy_model_features_hidden_units = [600, 300]
+	params.energy_model_feature_extractor_hidden_units = [600, 300]
 	params.energy_model_batchnorm_to_input = False
 	params.energy_model_batchnorm_before_activation = False
 	params.energy_model_batchnorm_enabled = True
