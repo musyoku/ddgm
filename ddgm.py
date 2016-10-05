@@ -26,16 +26,18 @@ class Params():
 		self.energy_model_num_experts = 128
 		self.energy_model_features_hidden_units = [500]
 		self.energy_model_batchnorm_to_input = True
+		# True:  y = f(BN(W*x + b))
+		# False: y = f(W*BN(x) + b))
 		self.energy_model_batchnorm_before_activation = False
 		self.energy_model_batchnorm_enabled = True
-		self.energy_model_apply_acitivation_function_to_features = True
+		self.energy_model_wscale = 1
 
 		self.generative_model_hidden_units = [500]
 		self.generative_model_batchnorm_to_input = False
 		self.generative_model_batchnorm_before_activation = False
 		self.generative_model_batchnorm_enabled = True
+		self.generative_model_wscale = 1
 
-		self.wscale = 0.1
 		self.gradient_clipping = 10
 		self.weight_decay = 0
 		self.learning_rate = 0.001
@@ -109,14 +111,14 @@ class DDGM():
 		units = [(params.ndim_x, params.energy_model_features_hidden_units[0])]
 		units += zip(params.energy_model_features_hidden_units[:-1], params.energy_model_features_hidden_units[1:])
 		for i, (n_in, n_out) in enumerate(units):
-			attributes["layer_%i" % i] = L.Linear(n_in, n_out, wscale=params.wscale)
+			attributes["layer_%i" % i] = L.Linear(n_in, n_out, wscale=params.energy_model_wscale)
 			if params.energy_model_batchnorm_before_activation:
 				attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out)
 			else:
 				attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
 
-		attributes["b"] = L.Linear(params.ndim_x, 1, wscale=params.wscale, nobias=True)
-		attributes["feature_detector"] = L.Linear(params.energy_model_features_hidden_units[-1], params.energy_model_num_experts, wscale=params.wscale)
+		attributes["b"] = L.Linear(params.ndim_x, 1, wscale=params.energy_model_wscale, nobias=True)
+		attributes["feature_detector"] = L.Linear(params.energy_model_features_hidden_units[-1], params.energy_model_num_experts, wscale=params.energy_model_wscale)
 
 		self.energy_model = DeepEnergyModel(params, n_layers=len(units), **attributes)
 
@@ -126,7 +128,7 @@ class DDGM():
 		units += zip(params.generative_model_hidden_units[:-1], params.generative_model_hidden_units[1:])
 		units += [(params.generative_model_hidden_units[-1], params.ndim_x)]
 		for i, (n_in, n_out) in enumerate(units):
-			attributes["layer_%i" % i] = L.Linear(n_in, n_out, wscale=params.wscale)
+			attributes["layer_%i" % i] = L.Linear(n_in, n_out, wscale=params.generative_model_wscale)
 			if params.generative_model_batchnorm_before_activation:
 				attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out)
 			else:
@@ -137,7 +139,7 @@ class DDGM():
 	def setup_optimizers(self):
 		params = self.params
 		
-		opt = optimizers.AdaGrad(lr=params.learning_rate)
+		opt = optimizers.AdaGrad(lr=params.learning_rate * 10)
 		opt.setup(self.energy_model)
 		if params.weight_decay > 0:
 			opt.add_hook(optimizer.WeightDecay(params.weight_decay))
@@ -232,7 +234,10 @@ class DDGM():
 	def compute_loss(self, x_batch_positive, x_batch_negative):
 		energy_positive, experts_positive = self.compute_energy(x_batch_positive)
 		energy_negative, experts_negative = self.compute_energy(x_batch_negative)
-		return F.sum(energy_positive) / self.get_batchsize(x_batch_positive) - F.sum(energy_negative) / self.get_batchsize(x_batch_negative)
+		energy_positive = F.sum(energy_positive) / self.get_batchsize(x_batch_positive)
+		energy_negative = F.sum(energy_negative) / self.get_batchsize(x_batch_negative)
+		loss = energy_positive - energy_negative
+		return loss, energy_positive, energy_negative
 
 	def load(self, dir=None):
 		if dir is None:
@@ -339,7 +344,6 @@ class DeepEnergyModel(chainer.Chain):
 		self.batchnorm_enabled = params.energy_model_batchnorm_enabled
 		self.batchnorm_to_input = params.energy_model_batchnorm_to_input
 		self.batchnorm_before_activation = params.energy_model_batchnorm_before_activation
-		self.apply_fn_to_features = params.energy_model_apply_acitivation_function_to_features
 
 		if params.gpu_enabled:
 			self.to_gpu()
@@ -370,14 +374,11 @@ class DeepEnergyModel(chainer.Chain):
 				u = getattr(self, "layer_%i" % i)(u)
 
 			if i == self.n_layers - 1:
-				if self.apply_fn_to_features:
-					output = f(u)
-				else:
-					output = u
+				output = F.tanh(u)
 			else:
 				output = f(u)
-				if self.apply_dropout:
-					output = F.dropout(output, train=not self.test)
+			if self.apply_dropout:
+				output = F.dropout(output, train=not self.test)
 
 			chain.append(output)
 
@@ -385,7 +386,7 @@ class DeepEnergyModel(chainer.Chain):
 
 	def compute_energy(self, x, features):
 		feature_detector = self.feature_detector(features)
-		xp = self.xp
+
 		# avoid overflow
 		# -log(1 + exp(x)) = -max(0, x) - log(1 + exp(-|x|)) = -softplus
 		experts = -F.softplus(feature_detector)

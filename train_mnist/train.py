@@ -24,12 +24,12 @@ def sample_from_data(images, batchsize, ndim_x):
 
 def main():
 	# load MNIST images
-	images = load_images(args.train_image_dir)
+	images = load_images(args.image_dir)
 	
 	# settings
 	max_epoch = 1000
-	n_trains_per_epoch = 5000
-	batchsize_positive = 100
+	n_trains_per_epoch = 500
+	batchsize_positive = 300
 	batchsize_negative = 100
 
 	# seed
@@ -39,7 +39,8 @@ def main():
 
 	total_time = 0
 	for epoch in xrange(1, max_epoch):
-		sum_loss = 0
+		sum_energy_positive = 0
+		sum_energy_negative = 0
 		sum_kld = 0
 		epoch_time = time.time()
 
@@ -50,18 +51,23 @@ def main():
 			# train energy model
 			## sample from generator
 			x_negative = ddgm.generate_x(batchsize_negative)
-			loss = ddgm.compute_loss(x_positive, x_negative)
-			## update parameters
-			ddgm.backprop_energy_model(loss)
+			## compute loss
+			loss, energy_positive, energy_negative = ddgm.compute_loss(x_positive, x_negative)
+			## update weights
+			ddgm.backprop_energy_model(energy_positive)
+			ddgm.backprop_energy_model(-energy_negative)
 
 			# train generative model
 			## sample from generator
 			x_negative = ddgm.generate_x(batchsize_negative)
+			## compute KL divergence
+			## TODO: KLD must be greater than or equal to 0
 			kld = ddgm.compute_kld_between_generator_and_energy_model(x_negative)
-			## update parameters
+			## update weights
 			ddgm.backprop_generative_model(kld)
 
-			sum_loss += float(loss.data)
+			sum_energy_positive += float(energy_positive.data)
+			sum_energy_negative += float(energy_negative.data)
 			sum_kld += float(kld.data)
 			if t % 10 == 0:
 				sys.stdout.write("\rTraining in progress...({} / {})".format(t, n_trains_per_epoch))
@@ -70,7 +76,7 @@ def main():
 		epoch_time = time.time() - epoch_time
 		total_time += epoch_time
 		sys.stdout.write("\r")
-		print "epoch: {} loss: {:.3f} kld: {:.3f} time: {} min total: {} min".format(epoch + 1, sum_loss / n_trains_per_epoch, sum_kld / n_trains_per_epoch, int(epoch_time / 60), int(total_time / 60))
+		print "epoch: {} energy: x+ {:.3f} x- {:.3f} kld: {:.3f} time: {} min total: {} min".format(epoch + 1, sum_energy_positive / n_trains_per_epoch, sum_energy_negative / n_trains_per_epoch, sum_kld / n_trains_per_epoch, int(epoch_time / 60), int(total_time / 60))
 		sys.stdout.flush()
 		ddgm.save(args.model_dir)
 

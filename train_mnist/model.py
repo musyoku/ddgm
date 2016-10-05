@@ -27,22 +27,22 @@ else:
 	params.activation_function = "elu"
 	params.apply_dropout = False
 
-	params.energy_model_num_experts = 128
-	params.energy_model_features_hidden_units = [1200, 1200]
+	params.energy_model_num_experts = 8
+	params.energy_model_features_hidden_units = [600, 60]
 	params.energy_model_batchnorm_to_input = False
-	params.energy_model_batchnorm_before_activation = True
-	params.energy_model_batchnorm_enabled = True
-	params.energy_model_apply_acitivation_function_to_features = True
+	params.energy_model_batchnorm_before_activation = False
+	params.energy_model_batchnorm_enabled = False
+	params.energy_model_wscale = 1
 
-	params.generative_model_hidden_units = [1200, 1200]
+	params.generative_model_hidden_units = [600, 600]
 	params.generative_model_batchnorm_to_input = False
-	params.generative_model_batchnorm_before_activation = True
+	params.generative_model_batchnorm_before_activation = False
 	params.generative_model_batchnorm_enabled = True
+	params.generative_model_wscale = 1
 
-	params.wscale = 1
-	params.gradient_clipping = 5
+	params.gradient_clipping = 10
 	params.weight_decay = 0
-	params.learning_rate = 0.0003
+	params.learning_rate = 0.001
 	params.gpu_enabled = True if args.gpu_enabled == 1 else False
 
 	params.check()

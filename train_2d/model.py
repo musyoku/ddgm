@@ -35,13 +35,13 @@ else:
 
 	params.generative_model_hidden_units = [128, 128]
 	params.generative_model_batchnorm_to_input = False
-	params.generative_model_batchnorm_before_activation = False
+	params.generative_model_batchnorm_before_activation = True
 	params.generative_model_batchnorm_enabled = True
 
 	params.wscale = 1
-	params.gradient_clipping = 5
+	params.gradient_clipping = 10
 	params.weight_decay = 0
-	params.learning_rate = 0.001
+	params.learning_rate = 0.01
 	params.gpu_enabled = True if args.gpu_enabled == 1 else False
 
 	params.check()
