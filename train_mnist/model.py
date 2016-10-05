@@ -35,7 +35,7 @@ else:
 	params.energy_model_wscale = 1
 	params.energy_model_activation_function = "elu"
 
-	params.generative_model_hidden_units = [600]
+	params.generative_model_hidden_units = [600, 600]
 	params.generative_model_batchnorm_to_input = False
 	params.generative_model_batchnorm_before_activation = True
 	params.generative_model_batchnorm_enabled = True

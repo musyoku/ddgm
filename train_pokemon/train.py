@@ -10,18 +10,20 @@ import dataset
 
 def sample_from_data(images, batchsize):
 	example = images[0]
-	height = example.shape[2]
-	width = example.shape[3]
+	height = example.shape[1]
+	width = example.shape[2]
 	x_batch = np.zeros((batchsize, 3, width, height), dtype=np.float32)
 	indices = np.random.choice(np.arange(len(images), dtype=np.int32), size=batchsize, replace=False)
 	for j in range(batchsize):
 		data_index = indices[j]
-		x_batch[j] = images[data_index]
+		image_rgba = images[data_index]
+		image_rgb = image_rgba[:3, :, :]
+		x_batch[j] = image_rgb
 	return x_batch
 
 def main():
 	# load MNIST images
-	images = load_images(args.image_dir, is_grayscale=True)
+	images = load_images(args.image_dir, is_grayscale=False)
 	
 	# settings
 	max_epoch = 1000

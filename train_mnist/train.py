@@ -10,7 +10,7 @@ import dataset
 
 def sample_from_data(images, batchsize):
 	example = images[0]
-	ndim_x = example.shape[0]
+	ndim_x = example.size
 	x_batch = np.zeros((batchsize, ndim_x), dtype=np.float32)
 	indices = np.random.choice(np.arange(len(images), dtype=np.int32), size=batchsize, replace=False)
 	for j in range(batchsize):
@@ -29,7 +29,7 @@ def main():
 	
 	# settings
 	max_epoch = 1000
-	n_trains_per_epoch = 500
+	n_trains_per_epoch = 5000
 	batchsize_positive = 128
 	batchsize_negative = 128
 
