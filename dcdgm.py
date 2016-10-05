@@ -109,6 +109,7 @@ class DCDGM(DDGM):
 
 		# deep energy model
 		attributes = {}
+		# conv layers
 		channels = [(params.x_channels, params.energy_model_feature_extractor_hidden_channels[0])]
 		channels += zip(params.energy_model_feature_extractor_hidden_channels[:-1], params.energy_model_feature_extractor_hidden_channels[1:])
 		kernel_width = params.energy_model_feature_extractor_ksize
@@ -124,13 +125,22 @@ class DCDGM(DDGM):
 			input_width = (input_width + pad * 2 - kernel_width) // (kernel_width - stride) + 1
 
 		attributes["b"] = L.Linear(params.x_width * params.x_height * params.x_channels, 1, wscale=params.energy_model_wscale, nobias=True)
-		attributes["feature_projection"] = L.Linear(input_width * input_width * params.x_channels, params.energy_model_feature_extractor_ndim_output, wscale=params.energy_model_wscale)
-		attributes["feature_detector"] = L.Linear(params.energy_model_feature_extractor_ndim_output, params.energy_model_num_experts, wscale=params.energy_model_wscale)
+
+		# feature extractor
+		n_units_before_projection = input_width * input_width * params.x_channels
+		n_units_after_projection = params.energy_model_feature_extractor_ndim_output
+		attributes["feature_projector"] = L.Linear(n_units_before_projection, n_units_after_projection, wscale=params.energy_model_wscale)
+		if params.energy_model_batchnorm_before_activation:
+			attributes["batchnorm_projector"] = L.BatchNormalization(n_units_after_projection)
+		else:
+			attributes["batchnorm_projector"] = L.BatchNormalization(n_units_before_projection)
+		attributes["feature_detector"] = L.Linear(n_units_after_projection, params.energy_model_num_experts, wscale=params.energy_model_wscale)
 
 		self.energy_model = DeepEnergyModel(params, n_layers=len(channels), **attributes)
 
 		# deep generative model
 		attributes = {}
+		# conv layers
 		channels = zip(params.generative_model_hidden_channels[:-1], params.generative_model_hidden_channels[1:])
 		channels += [(params.generative_model_hidden_channels[-1], params.x_channels)]
 		kernel_width = params.generative_model_ksize
@@ -146,18 +156,19 @@ class DCDGM(DDGM):
 		for i, (n_in, n_out) in enumerate(channels):
 			pad = paddings[i]
 			attributes["layer_%i" % i] = L.Deconvolution2D(n_in, n_out, kernel_width, stride=stride, pad=pad, wscale=params.generative_model_wscale)
-			if params.energy_model_batchnorm_before_activation:
+			if params.generative_model_batchnorm_before_activation:
 				attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out)
 			else:
 				attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
 
+		# projecton layer
 		n_units_before_projection = params.ndim_z
 		n_units_after_projection = projection_width * projection_width * params.generative_model_hidden_channels[-1]
-		attributes["noize_projection"] = L.Linear(n_units_before_projection, n_units_after_projection, wscale=params.energy_model_wscale)
-		if params.energy_model_batchnorm_before_activation:
-			attributes["batchnorm_projection"] = L.BatchNormalization(n_units_after_projection)
+		attributes["noize_projector"] = L.Linear(n_units_before_projection, n_units_after_projection, wscale=params.generative_model_wscale)
+		if params.generative_model_batchnorm_before_activation:
+			attributes["batchnorm_projector"] = L.BatchNormalization(n_units_after_projection)
 		else:
-			attributes["batchnorm_projection"] = L.BatchNormalization(n_units_before_projection)
+			attributes["batchnorm_projector"] = L.BatchNormalization(n_units_before_projection)
 
 		if params.distribution_x == "sigmoid":
 			self.generative_model = SigmoidDeepGenerativeModel(params, n_layers=len(channels), **attributes)
@@ -192,10 +203,10 @@ class DeepConvolutionalGenerativeModel(DeepGenerativeModel):
 	def project_z(self, z):
 		f = activations[self.activation_function]
 		if self.batchnorm_enabled == False:
-			return f(self.noize_projection(z))
+			return f(self.noize_projector(z))
 		if self.batchnorm_before_activation:
-			return f(self.batchnorm_projection(self.noize_projection(z), test=self.test))
-		return self.noize_projection(self.batchnorm_projection(z, test=self.test))
+			return f(self.batchnorm_projector(self.noize_projector(z), test=self.test))
+		return self.noize_projector(self.batchnorm_projector(z, test=self.test))
 
 	def __call__(self, z, test=False):
 		self.test = test
@@ -203,7 +214,6 @@ class DeepConvolutionalGenerativeModel(DeepGenerativeModel):
 
 class SigmoidDeepGenerativeModel(DeepGenerativeModel):
 	def __call__(self, x, test=False):
-		self.test = test
 		return F.sigmoid(self.compute_output(self.project_z(z)))
 
 class TanhDeepGenerativeModel(DeepGenerativeModel):
@@ -212,22 +222,6 @@ class TanhDeepGenerativeModel(DeepGenerativeModel):
 		return F.tanh(self.compute_output(self.project_z(z)))
 
 class DeepEnergyModel(chainer.Chain):
-	def __init__(self, params, n_layers, **layers):
-		super(DeepEnergyModel, self).__init__(**layers)
-
-		self.n_layers = n_layers
-		self.activation_function = params.energy_model_activation_function
-		self.apply_dropout = params.apply_dropout
-		self.batchnorm_enabled = params.energy_model_batchnorm_enabled
-		self.batchnorm_to_input = params.energy_model_batchnorm_to_input
-		self.batchnorm_before_activation = params.energy_model_batchnorm_before_activation
-
-		if params.gpu_enabled:
-			self.to_gpu()
-
-	@property
-	def xp(self):
-		return np if self._cpu else cuda.cupy
 
 	def extract_features(self, x):
 		f = activations[self.activation_function]
@@ -250,16 +244,20 @@ class DeepEnergyModel(chainer.Chain):
 			if self.batchnorm_before_activation == False:
 				u = getattr(self, "layer_%i" % i)(u)
 
-			if i == self.n_layers - 1:
-				output = F.tanh(u)
-			else:
-				output = f(u)
-				if self.apply_dropout:
-					output = F.dropout(output, train=not self.test)
+			output = f(u)
+			if self.apply_dropout:
+				output = F.dropout(output, train=not self.test)
 
 			chain.append(output)
 
 		return chain[-1]
+
+	def project_features(self, features):
+		if self.batchnorm_enabled == False:
+			return F.tanh(self.feature_projector(features))
+		if self.batchnorm_before_activation:
+			return F.tanh(self.batchnorm_projector(self.feature_projector(features), test=self.test))
+		return F.tanh(self.feature_projector(self.batchnorm_projector(features, test=self.test)))
 
 	def compute_energy(self, x, features):
 		feature_detector = self.feature_detector(features)
