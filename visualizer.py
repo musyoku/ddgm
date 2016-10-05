@@ -19,9 +19,9 @@ def tile_x(x, image_width=28, image_height=28, image_channel=1, dir=None, filena
 	for m in range(100):
 		pylab.subplot(10, 10, m + 1)
 		if image_channel == 1:
-			pylab.imshow(x[m].reshape((image_width, image_height)), interpolation="none")
+			pylab.imshow(np.clip(x[m], 0, 1).reshape((image_width, image_height)), interpolation="none")
 		elif image_channel == 3:
-			pylab.imshow(x[m].reshape((image_channel, image_width, image_height)), interpolation="none")
+			pylab.imshow(np.clip(x[m], 0, 1).reshape((image_channel, image_width, image_height)), interpolation="none")
 		pylab.axis("off")
 	pylab.savefig("{}/{}.png".format(dir, filename))
 
