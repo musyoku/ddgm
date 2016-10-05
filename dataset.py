@@ -1,13 +1,8 @@
 # -*- coding: utf-8 -*-
-import os, re, math, pylab, sys
-from math import *
+import os, sys
 import numpy as np
 from StringIO import StringIO
 from PIL import Image
-from chainer import cuda, Variable, function
-from chainer.utils import type_check
-from sklearn import preprocessing
-import matplotlib
 
 def load_images(image_dir, is_grayscale=True):
 	dataset = []

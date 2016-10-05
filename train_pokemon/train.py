@@ -1,4 +1,3 @@
-from scipy.io import wavfile
 import numpy as np
 import os, sys, time
 from chainer import cuda
@@ -9,28 +8,26 @@ from args import args
 from dataset import binarize_data, load_images
 import dataset
 
-def sample_from_data(images, batchsize, ndim_x):
-	x_batch = np.zeros((batchsize, ndim_x), dtype=np.float32)
+def sample_from_data(images, batchsize):
+	example = images[0]
+	height = example.shape[2]
+	width = example.shape[3]
+	x_batch = np.zeros((batchsize, 3, width, height), dtype=np.float32)
 	indices = np.random.choice(np.arange(len(images), dtype=np.int32), size=batchsize, replace=False)
 	for j in range(batchsize):
 		data_index = indices[j]
-		img = images[data_index]
-		x_batch[j] = img.reshape((ndim_x,))
-
-	# binalize
-	x_batch = binarize_data(x_batch)
-
+		x_batch[j] = images[data_index]
 	return x_batch
 
 def main():
 	# load MNIST images
-	images = load_images(args.image_dir)
+	images = load_images(args.image_dir, is_grayscale=True)
 	
 	# settings
 	max_epoch = 1000
-	n_trains_per_epoch = 5000
-	batchsize_positive = 128
-	batchsize_negative = 128
+	n_trains_per_epoch = 1
+	batchsize_positive = 64
+	batchsize_negative = 64
 
 	# seed
 	np.random.seed(args.seed)
@@ -46,7 +43,7 @@ def main():
 
 		for t in xrange(n_trains_per_epoch):
 			# sample from data distribution
-			x_positive = sample_from_data(images, batchsize_positive, params.ndim_x)
+			x_positive = sample_from_data(images, batchsize_positive)
 
 			# train energy model
 			x_negative = ddgm.generate_x(batchsize_negative)
@@ -74,17 +71,6 @@ def main():
 		print "epoch: {} energy: x+ {:.3f} x- {:.3f} kld: {:.3f} time: {} min total: {} min".format(epoch + 1, sum_energy_positive / n_trains_per_epoch, sum_energy_negative / n_trains_per_epoch, sum_kld / n_trains_per_epoch, int(epoch_time / 60), int(total_time / 60))
 		sys.stdout.flush()
 		ddgm.save(args.model_dir)
-
-
-		# validation
-		# x_positive = sample_from_data(images, 500, params.ndim_x)
-		# energy, experts = ddgm.compute_energy(x_positive, test=True)
-		# energy.to_cpu()
-		# print "energy (pos): ", np.mean(energy.data) 
-		# x_negative = ddgm.generate_x(500)
-		# energy, experts = ddgm.compute_energy(x_negative, test=True)
-		# energy.to_cpu()
-		# print "energy (neg): ", np.mean(energy.data) 
 
 if __name__ == '__main__':
 	main()

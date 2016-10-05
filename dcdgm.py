@@ -136,7 +136,7 @@ class DCDGM(DDGM):
 			attributes["batchnorm_projector"] = L.BatchNormalization(n_units_before_projection)
 		attributes["feature_detector"] = L.Linear(n_units_after_projection, params.energy_model_num_experts, wscale=params.energy_model_wscale)
 
-		self.energy_model = DeepEnergyModel(params, n_layers=len(channels), **attributes)
+		self.energy_model = DeepConvolutionalEnergyModel(params, n_layers=len(channels), **attributes)
 
 		# deep generative model
 		attributes = {}
@@ -171,11 +171,11 @@ class DCDGM(DDGM):
 			attributes["batchnorm_projector"] = L.BatchNormalization(n_units_before_projection)
 
 		if params.distribution_x == "sigmoid":
-			self.generative_model = SigmoidDeepGenerativeModel(params, n_layers=len(channels), **attributes)
+			self.generative_model = SigmoidDeepConvolutionalGenerativeModel(params, n_layers=len(channels), **attributes)
 		elif params.distribution_x == "tanh":
-			self.generative_model = TanhDeepGenerativeModel(params, n_layers=len(channels), **attributes)
+			self.generative_model = TanhDeepConvolutionalGenerativeModel(params, n_layers=len(channels), **attributes)
 		elif params.distribution_x == "universal":
-			self.generative_model = DeepGenerativeModel(params, n_layers=len(channels), **attributes)
+			self.generative_model = DeepConvolutionalGenerativeModel(params, n_layers=len(channels), **attributes)
 		else:
 			raise Exception()
 
@@ -212,16 +212,16 @@ class DeepConvolutionalGenerativeModel(DeepGenerativeModel):
 		self.test = test
 		return self.compute_output(self.project_z(z))
 
-class SigmoidDeepGenerativeModel(DeepGenerativeModel):
+class SigmoidDeepConvolutionalGenerativeModel(DeepConvolutionalGenerativeModel):
 	def __call__(self, x, test=False):
 		return F.sigmoid(self.compute_output(self.project_z(z)))
 
-class TanhDeepGenerativeModel(DeepGenerativeModel):
+class TanhDeepConvolutionalGenerativeModel(DeepConvolutionalGenerativeModel):
 	def __call__(self, x, test=False):
 		self.test = test
 		return F.tanh(self.compute_output(self.project_z(z)))
 
-class DeepEnergyModel(chainer.Chain):
+class DeepConvolutionalEnergyModel(DeepEnergyModel):
 
 	def extract_features(self, x):
 		f = activations[self.activation_function]

@@ -1,4 +1,3 @@
-from scipy.io import wavfile
 import numpy as np
 import os, sys, time, random, math
 from chainer import cuda
@@ -72,21 +71,6 @@ def main():
 		print "epoch: {} loss: {:.3f} {:.3f} kld: {:.3f} time: {} min total: {} min".format(epoch, sum_energy_positive / n_trains_per_epoch, sum_energy_negative / n_trains_per_epoch, sum_kld / n_trains_per_epoch, int(epoch_time / 60), int(total_time / 60))
 		sys.stdout.flush()
 		ddgm.save(args.model_dir)
-
-
-		# validation
-		x_positive = sample_from_data(batchsize_positive, params.ndim_x, 10)
-		energy, experts = ddgm.compute_energy(x_positive, test=True)
-		energy.to_cpu()
-		experts.to_cpu()
-		print "avg energy (pos):", np.mean(energy.data) 
-		# print "logP(x):", -np.sum(experts.data, axis=1)
-		x_negative = ddgm.generate_x(batchsize_negative)
-		energy, experts = ddgm.compute_energy(x_negative, test=True)
-		energy.to_cpu()
-		experts.to_cpu()
-		print "avg energy (neg): ", np.mean(energy.data) 
-		# print "logP(x):", -np.sum(experts.data, axis=1)
 
 if __name__ == '__main__':
 	main()

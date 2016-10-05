@@ -29,7 +29,10 @@ for number in xrange(total):
 	column = number % rows
 	row = number // rows
 	image = all_pokemons[row * height:(row + 1) * height, column * width:(column + 1) * width, :]
-	image = Image.fromarray(image)
-	image.save("{}/{}.png".format(image_dir, number + 1))
+	square = np.zeros((width, width, 4), dtype=np.uint8)
+	padding_top = (width - height) // 2 
+	square[padding_top:padding_top + height, :, :] = image
+	square = Image.fromarray(square)
+	square.save("{}/{}.png".format(image_dir, number + 1))
 	sys.stdout.write("\rsaving...({:d} / {:d})".format(number, total))
 	sys.stdout.flush()
