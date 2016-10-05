@@ -12,7 +12,7 @@ import dataset
 def sample_from_data(batchsize, n_dim, n_labels):
 	def sample(label, n_labels):
 		uni = np.random.uniform(0.0, 3.0) / float(n_labels) + float(label) / float(n_labels)
-		r = math.sqrt(uni) * 12.0
+		r = math.sqrt(uni) * 3.0
 		rad = np.pi * 4.0 * math.sqrt(uni)
 		x = r * math.cos(rad)
 		y = r * math.sin(rad)
@@ -29,8 +29,8 @@ def main():
 	# settings
 	max_epoch = 1000
 	n_trains_per_epoch = 500
-	batchsize_positive = 300
-	batchsize_negative = 300
+	batchsize_positive = 100
+	batchsize_negative = 100
 
 	# seed
 	np.random.seed(args.seed)
@@ -52,9 +52,9 @@ def main():
 			x_negative = ddgm.generate_x(batchsize_negative)
 			loss, positive_energy, negative_energy = ddgm.compute_loss(x_positive, x_negative)
 			# loss := positive_energy - negative_energy
-			# ddgm.backprop_energy_model(loss)
-			ddgm.backprop_energy_model(positive_energy)
-			ddgm.backprop_energy_model(-negative_energy)
+			ddgm.backprop_energy_model(loss)
+			# ddgm.backprop_energy_model(positive_energy)
+			# ddgm.backprop_energy_model(-negative_energy)
 
 			# train generative model
 			x_negative = ddgm.generate_x(batchsize_negative)

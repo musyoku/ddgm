@@ -24,7 +24,6 @@ else:
 	params = Params()
 	params.ndim_x = 2
 	params.ndim_z = 4
-	params.activation_function = "elu"
 	params.apply_dropout = False
 
 	params.energy_model_num_experts = 4
@@ -32,13 +31,16 @@ else:
 	params.energy_model_batchnorm_to_input = False
 	params.energy_model_batchnorm_before_activation = False
 	params.energy_model_batchnorm_enabled = False
+	params.energy_model_wscale = 1
+	params.energy_model_activation_function = "elu"
 
 	params.generative_model_hidden_units = [128, 128]
 	params.generative_model_batchnorm_to_input = False
-	params.generative_model_batchnorm_before_activation = True
+	params.generative_model_batchnorm_before_activation = False
 	params.generative_model_batchnorm_enabled = True
+	params.generative_model_wscale = 1
+	params.generative_model_activation_function = "elu"
 
-	params.wscale = 1
 	params.gradient_clipping = 10
 	params.weight_decay = 0
 	params.learning_rate = 0.01

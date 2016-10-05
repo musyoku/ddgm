@@ -8,7 +8,7 @@ from model import params, ddgm
 def sample_from_data(batchsize, n_dim, n_labels):
 	def sample(label, n_labels):
 		uni = np.random.uniform(0.0, 1.0) / float(n_labels) + float(label) / float(n_labels)
-		r = math.sqrt(uni) * 12.0
+		r = math.sqrt(uni) * 3.0
 		rad = np.pi * 4.0 * math.sqrt(uni)
 		x = r * math.cos(rad)
 		y = r * math.sin(rad)

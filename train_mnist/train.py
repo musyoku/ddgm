@@ -29,7 +29,7 @@ def main():
 	# settings
 	max_epoch = 1000
 	n_trains_per_epoch = 500
-	batchsize_positive = 300
+	batchsize_positive = 100
 	batchsize_negative = 100
 
 	# seed
@@ -49,21 +49,16 @@ def main():
 			x_positive = sample_from_data(images, batchsize_positive, params.ndim_x)
 
 			# train energy model
-			## sample from generator
 			x_negative = ddgm.generate_x(batchsize_negative)
-			## compute loss
 			loss, energy_positive, energy_negative = ddgm.compute_loss(x_positive, x_negative)
-			## update weights
-			ddgm.backprop_energy_model(energy_positive)
-			ddgm.backprop_energy_model(-energy_negative)
+			# ddgm.backprop_energy_model(energy_positive)
+			# ddgm.backprop_energy_model(-energy_negative)
+			ddgm.backprop_energy_model(loss)
 
 			# train generative model
-			## sample from generator
+			# TODO: KLD must be greater than or equal to 0
 			x_negative = ddgm.generate_x(batchsize_negative)
-			## compute KL divergence
-			## TODO: KLD must be greater than or equal to 0
 			kld = ddgm.compute_kld_between_generator_and_energy_model(x_negative)
-			## update weights
 			ddgm.backprop_generative_model(kld)
 
 			sum_energy_positive += float(energy_positive.data)

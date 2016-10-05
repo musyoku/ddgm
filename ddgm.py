@@ -20,7 +20,6 @@ class Params():
 	def __init__(self, dict=None):
 		self.ndim_x = 28 * 28
 		self.ndim_z = 10
-		self.activation_function = "elu"
 		self.apply_dropout = False
 
 		self.energy_model_num_experts = 128
@@ -31,12 +30,14 @@ class Params():
 		self.energy_model_batchnorm_before_activation = False
 		self.energy_model_batchnorm_enabled = True
 		self.energy_model_wscale = 1
+		self.energy_model_activation_function = "elu"
 
 		self.generative_model_hidden_units = [500]
 		self.generative_model_batchnorm_to_input = False
 		self.generative_model_batchnorm_before_activation = False
 		self.generative_model_batchnorm_enabled = True
 		self.generative_model_wscale = 1
+		self.generative_model_activation_function = "elu"
 
 		self.gradient_clipping = 10
 		self.weight_decay = 0
@@ -139,7 +140,7 @@ class DDGM():
 	def setup_optimizers(self):
 		params = self.params
 		
-		opt = optimizers.AdaGrad(lr=params.learning_rate * 10)
+		opt = optimizers.AdaGrad(lr=params.learning_rate)
 		opt.setup(self.energy_model)
 		if params.weight_decay > 0:
 			opt.add_hook(optimizer.WeightDecay(params.weight_decay))
@@ -270,7 +271,7 @@ class DeepGenerativeModel(chainer.Chain):
 		super(DeepGenerativeModel, self).__init__(**layers)
 
 		self.n_layers = n_layers
-		self.activation_function = params.activation_function
+		self.activation_function = params.generative_model_activation_function
 		self.apply_dropout = params.apply_dropout
 		self.batchnorm_enabled = params.generative_model_batchnorm_enabled
 		self.batchnorm_to_input = params.generative_model_batchnorm_to_input
@@ -339,7 +340,7 @@ class DeepEnergyModel(chainer.Chain):
 		super(DeepEnergyModel, self).__init__(**layers)
 
 		self.n_layers = n_layers
-		self.activation_function = params.activation_function
+		self.activation_function = params.energy_model_activation_function
 		self.apply_dropout = params.apply_dropout
 		self.batchnorm_enabled = params.energy_model_batchnorm_enabled
 		self.batchnorm_to_input = params.energy_model_batchnorm_to_input
@@ -377,8 +378,8 @@ class DeepEnergyModel(chainer.Chain):
 				output = F.tanh(u)
 			else:
 				output = f(u)
-			if self.apply_dropout:
-				output = F.dropout(output, train=not self.test)
+				if self.apply_dropout:
+					output = F.dropout(output, train=not self.test)
 
 			chain.append(output)
 
