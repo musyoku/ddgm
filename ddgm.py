@@ -21,6 +21,7 @@ class Params():
 		self.ndim_x = 28 * 28
 		self.ndim_z = 10
 		self.apply_dropout = False
+		self.distribution_x = "universal"	# universal or binomial
 
 		self.energy_model_num_experts = 128
 		self.energy_model_features_hidden_units = [500]
@@ -135,7 +136,12 @@ class DDGM():
 			else:
 				attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
 
-		self.generative_model = DeepGenerativeModel(params, n_layers=len(units), **attributes)
+		if params.distribution_x == "binomial":
+			self.generative_model = SigmoidDeepGenerativeModel(params, n_layers=len(units), **attributes)
+		elif params.distribution_x == "universal":
+			self.generative_model = DeepGenerativeModel(params, n_layers=len(units), **attributes)
+		else:
+			raise Exception()
 
 	def setup_optimizers(self):
 		params = self.params
@@ -334,6 +340,11 @@ class DeepGenerativeModel(chainer.Chain):
 	def __call__(self, x, test=False):
 		self.test = test
 		return self.compute_output(x)
+
+class SigmoidDeepGenerativeModel(DeepGenerativeModel):
+	def __call__(self, x, test=False):
+		self.test = test
+		return F.sigmoid(self.compute_output(x))
 
 class DeepEnergyModel(chainer.Chain):
 	def __init__(self, params, n_layers, **layers):

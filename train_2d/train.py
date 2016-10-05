@@ -53,8 +53,6 @@ def main():
 			loss, positive_energy, negative_energy = ddgm.compute_loss(x_positive, x_negative)
 			# loss := positive_energy - negative_energy
 			ddgm.backprop_energy_model(loss)
-			# ddgm.backprop_energy_model(positive_energy)
-			# ddgm.backprop_energy_model(-negative_energy)
 
 			# train generative model
 			x_negative = ddgm.generate_x(batchsize_negative)

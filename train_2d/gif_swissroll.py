@@ -44,9 +44,9 @@ def main():
 	# settings
 	max_epoch = 1000
 	n_trains_per_epoch = 50
-	batchsize_positive = 1000
-	batchsize_negative = 1000
-	plotsize = 200
+	batchsize_positive = 100
+	batchsize_negative = 100
+	plotsize = 400
 
 	# seed
 	np.random.seed(args.seed)
@@ -54,12 +54,12 @@ def main():
 		cuda.cupy.random.seed(args.seed)
 
 	fixed_z = ddgm.sample_z(plotsize)
-	fixed_target = sample_from_swiss_roll(500, params.ndim_x, 10)
+	fixed_target = sample_from_swiss_roll(600, params.ndim_x, 10)
 
 	total_time = 0
 	for epoch in xrange(1, max_epoch):
-		sum_loss = 0
-		sum_loss_negative = 0
+		sum_energy_positive = 0
+		sum_energy_negative = 0
 		sum_kld = 0
 		epoch_time = time.time()
 
@@ -69,7 +69,7 @@ def main():
 
 			# train energy model
 			x_negative = ddgm.generate_x(batchsize_negative)
-			loss = ddgm.compute_loss(x_positive, x_negative)
+			loss, energy_positive, energy_negative = ddgm.compute_loss(x_positive, x_negative)
 			ddgm.backprop_energy_model(loss)
 
 			# train generative model
@@ -77,7 +77,8 @@ def main():
 			kld = ddgm.compute_kld_between_generator_and_energy_model(x_negative)
 			ddgm.backprop_generative_model(kld)
 
-			sum_loss += float(loss.data)
+			sum_energy_positive += float(energy_positive.data)
+			sum_energy_negative += float(energy_negative.data)
 			sum_kld += float(kld.data)
 			if t % 10 == 0:
 				sys.stdout.write("\rTraining in progress...({} / {})".format(t, n_trains_per_epoch))
@@ -86,7 +87,7 @@ def main():
 		epoch_time = time.time() - epoch_time
 		total_time += epoch_time
 		sys.stdout.write("\r")
-		print "epoch: {} loss: {:.3f} kld: {:.3f} time: {} min total: {} min".format(epoch, sum_loss / n_trains_per_epoch, sum_kld / n_trains_per_epoch, int(epoch_time / 60), int(total_time / 60))
+		print "epoch: {} loss: x+ {:.3f} x- {:.3f} kld: {:.3f} time: {} min total: {} min".format(epoch, sum_energy_positive / n_trains_per_epoch, sum_energy_negative / n_trains_per_epoch, sum_kld / n_trains_per_epoch, int(epoch_time / 60), int(total_time / 60))
 		sys.stdout.flush()
 		ddgm.save(args.model_dir)
 
@@ -96,7 +97,7 @@ def main():
 		pylab.clf()
 
 		plot(fixed_target, color="#bec3c7", s=20)
-		plot(ddgm.generate_x_from_z(fixed_z, as_numpy=True, test=True), color="#e84c3d", s=40)
+		plot(ddgm.generate_x_from_z(fixed_z, as_numpy=True, test=True), color="#e84c3d", s=20)
 
 		# save
 		pylab.savefig("{}/{}.png".format(args.plot_dir, 100000 + epoch))

@@ -29,8 +29,8 @@ def main():
 	# settings
 	max_epoch = 1000
 	n_trains_per_epoch = 500
-	batchsize_positive = 100
-	batchsize_negative = 100
+	batchsize_positive = 128
+	batchsize_negative = 128
 
 	# seed
 	np.random.seed(args.seed)
