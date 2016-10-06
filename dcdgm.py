@@ -136,11 +136,9 @@ class DCDGM(DDGM):
 		for i, (n_in, n_out) in enumerate(channels):
 			pad = get_conv_padding(input_width, kernel_width, stride)
 			attributes["layer_%i" % i] = L.Convolution2D(n_in, n_out, kernel_width, stride=stride, pad=pad, wscale=params.energy_model_wscale)
-			if params.energy_model_batchnorm_before_activation:
-				attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out)
-			else:
-				attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
+			attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out if params.energy_model_batchnorm_before_activation else n_in)
 			output_width = (input_width + pad * 2 - kernel_width) // stride + 1
+			# check
 			if i != len(channels) - 1 and output_width < kernel_width:
 				raise Exception("output_width < kernel_width")
 			input_width = output_width
@@ -151,10 +149,7 @@ class DCDGM(DDGM):
 		n_units_before_projection = input_width * input_width * params.energy_model_feature_extractor_hidden_channels[-1]
 		n_units_after_projection = params.energy_model_feature_extractor_ndim_output
 		attributes["feature_projector"] = L.Linear(n_units_before_projection, n_units_after_projection, wscale=params.energy_model_wscale)
-		if params.energy_model_batchnorm_before_activation:
-			attributes["batchnorm_projector"] = L.BatchNormalization(n_units_after_projection)
-		else:
-			attributes["batchnorm_projector"] = L.BatchNormalization(n_units_before_projection)
+		attributes["batchnorm_projector"] = L.BatchNormalization(n_units_after_projection if params.energy_model_batchnorm_before_activation else n_units_before_projection)
 		attributes["feature_detector"] = L.Linear(n_units_after_projection, params.energy_model_num_experts, wscale=params.energy_model_wscale)
 
 		self.energy_model = DeepConvolutionalEnergyModel(params, n_layers=len(channels), **attributes)
@@ -170,6 +165,7 @@ class DCDGM(DDGM):
 		output_width = params.x_width
 		for i, (n_in, n_out) in enumerate(channels):
 			input_width = get_deconv_insize(output_width, kernel_width, stride, 1)
+			# check
 			_output_width = get_deconv_outsize(input_width, kernel_width, stride, 1)
 			if output_width != _output_width:
 				raise Exception("deconvolution missmatch")
@@ -178,19 +174,13 @@ class DCDGM(DDGM):
 
 		for i, (n_in, n_out) in enumerate(channels):
 			attributes["layer_%i" % i] = L.Deconvolution2D(n_in, n_out, kernel_width, stride=stride, pad=1, wscale=params.generative_model_wscale)
-			if params.generative_model_batchnorm_before_activation:
-				attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out)
-			else:
-				attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
+			attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out if params.generative_model_batchnorm_before_activation else n_in)
 
 		# projecton layer
 		n_units_before_projection = params.ndim_z
 		n_units_after_projection = projection_width * projection_width * params.generative_model_hidden_channels[0]
 		attributes["noize_projector"] = L.Linear(n_units_before_projection, n_units_after_projection, wscale=params.generative_model_wscale)
-		if params.generative_model_batchnorm_before_activation:
-			attributes["batchnorm_projector"] = L.BatchNormalization(n_units_after_projection)
-		else:
-			attributes["batchnorm_projector"] = L.BatchNormalization(n_units_before_projection)
+		attributes["batchnorm_projector"] = L.BatchNormalization(n_units_after_projection if params.generative_model_batchnorm_before_activation else n_units_before_projection)
 
 		if params.distribution_x == "sigmoid":
 			self.generative_model = SigmoidDeepConvolutionalGenerativeModel(params, n_layers=len(channels), **attributes)
@@ -270,7 +260,6 @@ class DCDGM(DDGM):
 		for i, (n_in, n_out) in enumerate(channels):
 			input_width = deconv_input_width_array[i]
 			output_width = deconv_input_width_array[i + 1]
-			pad = get_deconv_padding(input_width, output_width, kernel_width, stride)
 			print "| (ch_in: {}, ch_out: {}, input_size: {}x{} output_size: {}x{} padding: {}, stride: {})".format(n_in, n_out, input_width, input_width, output_width, output_width, 1, stride)
 
 		print "v"
