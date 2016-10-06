@@ -336,7 +336,6 @@ class DeepGenerativeModel(chainer.Chain):
 					output = F.dropout(output, train=not self.test)
 
 			chain.append(output)
-			print output.data.shape
 
 		return chain[-1]
 

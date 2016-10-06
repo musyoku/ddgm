@@ -30,21 +30,21 @@ else:
 	params.distribution_x = "tanh"
 
 	params.energy_model_num_experts = 128
-	params.energy_model_feature_extractor_hidden_channels = [64, 128, 256, 512]
+	params.energy_model_feature_extractor_hidden_channels = [16, 32, 64]
 	params.energy_model_feature_extractor_stride = 2
 	params.energy_model_feature_extractor_ksize = 4
 	params.energy_model_feature_extractor_ndim_output = 128
-	params.energy_model_batchnorm_to_input = True
+	params.energy_model_batchnorm_to_input = False
 	params.energy_model_batchnorm_before_activation = False
-	params.energy_model_batchnorm_enabled = True
+	params.energy_model_batchnorm_enabled = False
 	params.energy_model_wscale = 1
 	params.energy_model_activation_function = "elu"
 
-	params.generative_model_hidden_channels = [512, 256, 128, 64]
+	params.generative_model_hidden_channels = [64, 32, 16]
 	params.generative_model_stride = 2
 	params.generative_model_ksize = 4
 	params.generative_model_batchnorm_to_input = False
-	params.generative_model_batchnorm_before_activation = False
+	params.generative_model_batchnorm_before_activation = True
 	params.generative_model_batchnorm_enabled = True
 	params.generative_model_wscale = 1
 	params.generative_model_activation_function = "elu"
@@ -59,5 +59,5 @@ else:
 		json.dump(params.to_dict(), f, indent=4)
 
 params.dump()
-ddgm = DCDGM(params)
-ddgm.load(args.model_dir)
+dcdgm = DCDGM(params)
+dcdgm.load(args.model_dir)

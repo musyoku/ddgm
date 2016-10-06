@@ -22,9 +22,9 @@ class Params():
 		self.energy_model_feature_extractor_stride = 2
 		self.energy_model_feature_extractor_ksize = 4
 		self.energy_model_feature_extractor_ndim_output = 128
-		self.energy_model_batchnorm_to_input = True
+		self.energy_model_batchnorm_to_input = False
 		self.energy_model_batchnorm_before_activation = False
-		self.energy_model_batchnorm_enabled = True
+		self.energy_model_batchnorm_enabled = False
 		self.energy_model_wscale = 1
 		self.energy_model_activation_function = "elu"
 
@@ -32,7 +32,7 @@ class Params():
 		self.generative_model_stride = 2
 		self.generative_model_ksize = 4
 		self.generative_model_batchnorm_to_input = False
-		self.generative_model_batchnorm_before_activation = False
+		self.generative_model_batchnorm_before_activation = True
 		self.generative_model_batchnorm_enabled = True
 		self.generative_model_wscale = 1
 		self.generative_model_activation_function = "elu"
@@ -78,7 +78,24 @@ def sum_sqnorm(arr):
 			s = x.dot(x)
 			sq_sum[int(dev)] += s
 	return sum([float(i) for i in six.itervalues(sq_sum)])
-	
+
+def get_conv_padding(in_size, ksize, stride):
+	pad2 = stride - (in_size - ksize) % stride
+	if pad2 % stride == 0:
+		return 0
+	if pad2 % 2 == 1:
+		return pad2
+	return pad2 / 2
+
+def get_deconv_padding(in_size, out_size, ksize, stride):
+	return (stride * (in_size - 1) + ksize - out_size) // 2
+
+def get_deconv_outsize(in_size, ksize, stride, padding):
+	return stride * (in_size - 1) + ksize - 2 * padding
+
+def get_deconv_insize(out_size, ksize, stride, padding):
+	return (out_size - ksize + 2 * padding) // stride + 1
+
 class GradientClipping(object):
 	name = "GradientClipping"
 
@@ -117,7 +134,7 @@ class DCDGM(DDGM):
 		stride = params.energy_model_feature_extractor_stride
 		input_width = params.x_width
 		for i, (n_in, n_out) in enumerate(channels):
-			pad = input_width % kernel_width % 2
+			pad = get_conv_padding(input_width, kernel_width, stride)
 			attributes["layer_%i" % i] = L.Convolution2D(n_in, n_out, kernel_width, stride=stride, pad=pad, wscale=params.energy_model_wscale)
 			if params.energy_model_batchnorm_before_activation:
 				attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out)
@@ -127,7 +144,6 @@ class DCDGM(DDGM):
 			if i != len(channels) - 1 and output_width < kernel_width:
 				raise Exception("output_width < kernel_width")
 			input_width = output_width
-		projection_width = input_width
 
 		attributes["b"] = L.Linear(params.x_width * params.x_height * params.x_channels, 1, wscale=params.energy_model_wscale, nobias=True)
 
@@ -150,10 +166,18 @@ class DCDGM(DDGM):
 		channels += [(params.generative_model_hidden_channels[-1], params.x_channels)]
 		kernel_width = params.generative_model_ksize
 		stride = params.generative_model_stride
+		# compute projection size
+		output_width = params.x_width
+		for i, (n_in, n_out) in enumerate(channels):
+			input_width = get_deconv_insize(output_width, kernel_width, stride, 1)
+			_output_width = get_deconv_outsize(input_width, kernel_width, stride, 1)
+			if output_width != _output_width:
+				raise Exception("deconvolution missmatch")
+			output_width = input_width
+		projection_width = input_width
 
 		for i, (n_in, n_out) in enumerate(channels):
-			pad = 0
-			attributes["layer_%i" % i] = L.Deconvolution2D(n_in, n_out, kernel_width, stride=stride, pad=pad, wscale=params.generative_model_wscale)
+			attributes["layer_%i" % i] = L.Deconvolution2D(n_in, n_out, kernel_width, stride=stride, pad=1, wscale=params.generative_model_wscale)
 			if params.generative_model_batchnorm_before_activation:
 				attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out)
 			else:
@@ -197,7 +221,7 @@ class DCDGM(DDGM):
 		input_width = params.x_width
 		deconv_input_width_array = [input_width]
 		for i, (n_in, n_out) in enumerate(channels):
-			pad = input_width % kernel_width % 2
+			pad = get_conv_padding(input_width, kernel_width, stride)
 			output_width = (input_width + pad * 2 - kernel_width) // stride + 1
 			if i != len(channels) - 1 and output_width < kernel_width:
 				raise Exception("output_width < kernel_width")
@@ -229,28 +253,28 @@ class DCDGM(DDGM):
 		channels += [(params.generative_model_hidden_channels[-1], params.x_channels)]
 		kernel_width = params.generative_model_ksize
 		stride = params.generative_model_stride
-		paddings = []
-		# compute projection width
-		projection_width = params.x_width
+		# compute projection size
+		output_width = params.x_width
+		deconv_input_width_array = [output_width]
 		for i, (n_in, n_out) in enumerate(channels):
-			pad = projection_width % kernel_width % 2
-			paddings = [pad] + paddings
-			projection_width = (projection_width + pad * 2 - kernel_width) // stride + 1
+			input_width = get_deconv_insize(output_width, kernel_width, stride, 1)
+			output_width = input_width
+			deconv_input_width_array = [output_width] + deconv_input_width_array
+		projection_width = input_width
 
 		print "Projection Layer:"
 		print "| ndim: {} -> [projection] -> size: {}x{}, ch: {}".format(params.ndim_z, projection_width, projection_width, params.generative_model_hidden_channels[0])
 		print "v"
 		print "Deconv Layer:"
 
-		input_width = deconv_input_width_array[0]
 		for i, (n_in, n_out) in enumerate(channels):
-			pad = paddings[i]
+			input_width = deconv_input_width_array[i]
 			output_width = deconv_input_width_array[i + 1]
-			print "| (ch_in: {}, ch_out: {}, input_size: {}x{} output_size: {}x{} padding: {}, stride: {})".format(n_in, n_out, input_width, input_width, output_width, output_width, pad, stride)
-			input_width = output_width
+			pad = get_deconv_padding(input_width, output_width, kernel_width, stride)
+			print "| (ch_in: {}, ch_out: {}, input_size: {}x{} output_size: {}x{} padding: {}, stride: {})".format(n_in, n_out, input_width, input_width, output_width, output_width, 1, stride)
 
 		print "v"
-		print "Sampling"
+		print "x~"
 
 	def setup_optimizers(self):
 		params = self.params
@@ -276,10 +300,13 @@ class DeepConvolutionalGenerativeModel(DeepGenerativeModel):
 	def project_z(self, z):
 		f = activations[self.activation_function]
 		if self.batchnorm_enabled == False:
-			return f(self.noize_projector(z))
-		if self.batchnorm_before_activation:
-			return f(self.batchnorm_projector(self.noize_projector(z), test=self.test))
-		projection = self.noize_projector(self.batchnorm_projector(z, test=self.test))
+			projection = self.noize_projector(z)
+		else:
+			if self.batchnorm_before_activation:
+				projection = self.batchnorm_projector(self.noize_projector(z), test=self.test)
+			else:
+				projection = self.noize_projector(self.batchnorm_projector(z, test=self.test))
+		projection = f(projection)
 		batchsize = projection.data.shape[0]
 		return F.reshape(projection, (batchsize, -1, self.projection_width, self.projection_width))
 

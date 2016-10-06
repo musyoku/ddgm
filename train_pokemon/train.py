@@ -3,7 +3,7 @@ import os, sys, time
 from chainer import cuda
 from chainer import functions as F
 sys.path.append(os.path.split(os.getcwd())[0])
-from model import params, ddgm
+from model import params, dcdgm
 from args import args
 from dataset import binarize_data, load_images
 import dataset
@@ -27,7 +27,7 @@ def main():
 	
 	# settings
 	max_epoch = 1000
-	n_trains_per_epoch = 1
+	n_trains_per_epoch = 100
 	batchsize_positive = 64
 	batchsize_negative = 64
 
@@ -48,17 +48,17 @@ def main():
 			x_positive = sample_from_data(images, batchsize_positive)
 
 			# train energy model
-			x_negative = ddgm.generate_x(batchsize_negative)
-			loss, energy_positive, energy_negative = ddgm.compute_loss(x_positive, x_negative)
-			# ddgm.backprop_energy_model(energy_positive)
-			# ddgm.backprop_energy_model(-energy_negative)
-			ddgm.backprop_energy_model(loss)
+			x_negative = dcdgm.generate_x(batchsize_negative)
+			loss, energy_positive, energy_negative = dcdgm.compute_loss(x_positive, x_negative)
+			# dcdgm.backprop_energy_model(energy_positive)
+			# dcdgm.backprop_energy_model(-energy_negative)
+			dcdgm.backprop_energy_model(loss)
 
 			# train generative model
 			# TODO: KLD must be greater than or equal to 0
-			x_negative = ddgm.generate_x(batchsize_negative)
-			kld = ddgm.compute_kld_between_generator_and_energy_model(x_negative)
-			ddgm.backprop_generative_model(kld)
+			x_negative = dcdgm.generate_x(batchsize_negative)
+			kld = dcdgm.compute_kld_between_generator_and_energy_model(x_negative)
+			dcdgm.backprop_generative_model(kld)
 
 			sum_energy_positive += float(energy_positive.data)
 			sum_energy_negative += float(energy_negative.data)
@@ -72,7 +72,7 @@ def main():
 		sys.stdout.write("\r")
 		print "epoch: {} energy: x+ {:.3f} x- {:.3f} kld: {:.3f} time: {} min total: {} min".format(epoch + 1, sum_energy_positive / n_trains_per_epoch, sum_energy_negative / n_trains_per_epoch, sum_kld / n_trains_per_epoch, int(epoch_time / 60), int(total_time / 60))
 		sys.stdout.flush()
-		ddgm.save(args.model_dir)
+		dcdgm.save(args.model_dir)
 
 if __name__ == '__main__':
 	main()
