@@ -27,7 +27,7 @@ def main():
 	
 	# settings
 	max_epoch = 1000
-	n_trains_per_epoch = 1000
+	n_trains_per_epoch = 200
 	batchsize_positive = 64
 	batchsize_negative = 64
 

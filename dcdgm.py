@@ -18,15 +18,20 @@ class Params():
 		self.distribution_x = "universal"	# universal or sigmoid or tanh
 
 		self.energy_model_num_experts = 128
+		self.energy_model_feature_extractor_ndim_output = 128
 		self.energy_model_feature_extractor_hidden_channels = [64, 128, 256, 512]
 		self.energy_model_feature_extractor_stride = 2
 		self.energy_model_feature_extractor_ksize = 4
-		self.energy_model_feature_extractor_ndim_output = 128
 		self.energy_model_batchnorm_to_input = False
 		self.energy_model_batchnorm_before_activation = False
 		self.energy_model_batchnorm_enabled = False
 		self.energy_model_wscale = 1
 		self.energy_model_activation_function = "elu"
+		self.energy_model_optimizer = "Adam"
+		self.energy_model_learning_rate = 0.001
+		self.energy_model_momentum = 0.9
+		self.energy_model_gradient_clipping = 10
+		self.energy_model_weight_decay = 0
 
 		self.generative_model_hidden_channels = [512, 256, 128, 64]
 		self.generative_model_stride = 2
@@ -36,10 +41,12 @@ class Params():
 		self.generative_model_batchnorm_enabled = True
 		self.generative_model_wscale = 1
 		self.generative_model_activation_function = "elu"
+		self.generative_model_optimizer = "Adam"
+		self.generative_model_learning_rate = 0.001
+		self.generative_model_momentum = 0.9
+		self.generative_model_gradient_clipping = 10
+		self.generative_model_weight_decay = 0
 
-		self.gradient_clipping = 10
-		self.weight_decay = 0
-		self.learning_rate = 0.0001
 		self.gpu_enabled = True
 
 		if dict:
@@ -264,25 +271,6 @@ class DCDGM(DDGM):
 
 		print "v"
 		print "x~"
-
-	def setup_optimizers(self):
-		params = self.params
-		
-		opt = optimizers.AdaGrad(lr=params.learning_rate)
-		opt.setup(self.energy_model)
-		if params.weight_decay > 0:
-			opt.add_hook(optimizer.WeightDecay(params.weight_decay))
-		if params.gradient_clipping > 0:
-			opt.add_hook(GradientClipping(params.gradient_clipping))
-		self.optimizer_energy_model = opt
-		
-		opt = optimizers.AdaGrad(lr=params.learning_rate)
-		opt.setup(self.generative_model)
-		if params.weight_decay > 0:
-			opt.add_hook(optimizer.WeightDecay(params.weight_decay))
-		if params.gradient_clipping > 0:
-			opt.add_hook(GradientClipping(params.gradient_clipping))
-		self.optimizer_generative_model = opt
 
 class DeepConvolutionalGenerativeModel(DeepGenerativeModel):
 

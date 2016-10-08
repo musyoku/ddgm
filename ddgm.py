@@ -32,6 +32,11 @@ class Params():
 		self.energy_model_batchnorm_enabled = True
 		self.energy_model_wscale = 1
 		self.energy_model_activation_function = "elu"
+		self.energy_model_optimizer = "Adam"
+		self.energy_model_learning_rate = 0.001
+		self.energy_model_momentum = 0.9
+		self.energy_model_gradient_clipping = 10
+		self.energy_model_weight_decay = 0
 
 		self.generative_model_hidden_units = [500]
 		self.generative_model_batchnorm_to_input = False
@@ -39,10 +44,12 @@ class Params():
 		self.generative_model_batchnorm_enabled = True
 		self.generative_model_wscale = 1
 		self.generative_model_activation_function = "elu"
+		self.generative_model_optimizer = "Adam"
+		self.generative_model_learning_rate = 0.001
+		self.generative_model_momentum = 0.9
+		self.generative_model_gradient_clipping = 10
+		self.generative_model_weight_decay = 0
 
-		self.gradient_clipping = 10
-		self.weight_decay = 0
-		self.learning_rate = 0.001
 		self.gpu_enabled = True
 
 		if dict:
@@ -145,23 +152,39 @@ class DDGM():
 		else:
 			raise Exception()
 
+	def get_optimizer(self, name, lr, momentum):
+		if name.lower() == "adam":
+			return optimizers.Adam(alpha=lr, beta1=momentum)
+		if name.lower() == "adagrad":
+			return optimizers.AdaGrad(lr=lr)
+		if name.lower() == "adadelta":
+			return optimizers.AdaDelta(rho=momentum)
+		if name.lower() == "nesterov" or name.lower() == "nesterovag":
+			return optimizers.NesterovAG(lr=lr, momentum=momentum)
+		if name.lower() == "rmsprop":
+			return optimizers.RMSprop(lr=lr, alpha=momentum)
+		if name.lower() == "momentumsgd":
+			return optimizers.MomentumSGD(lr=lr, mommentum=mommentum)
+		if name.lower() == "sgd":
+			return optimizers.SGD(lr=lr)
+
 	def setup_optimizers(self):
 		params = self.params
 		
-		opt = optimizers.AdaGrad(lr=params.learning_rate)
+		opt = self.get_optimizer(params.energy_model_optimizer, params.energy_model_learning_rate, params.energy_model_momentum)
 		opt.setup(self.energy_model)
-		if params.weight_decay > 0:
-			opt.add_hook(optimizer.WeightDecay(params.weight_decay))
-		if params.gradient_clipping > 0:
-			opt.add_hook(GradientClipping(params.gradient_clipping))
+		if params.energy_model_weight_decay > 0:
+			opt.add_hook(optimizer.WeightDecay(params.energy_model_weight_decay))
+		if params.energy_model_gradient_clipping > 0:
+			opt.add_hook(GradientClipping(params.energy_model_gradient_clipping))
 		self.optimizer_energy_model = opt
 		
-		opt = optimizers.AdaGrad(lr=params.learning_rate)
+		opt = self.get_optimizer(params.generative_model_optimizer, params.generative_model_learning_rate, params.generative_model_momentum)
 		opt.setup(self.generative_model)
-		if params.weight_decay > 0:
-			opt.add_hook(optimizer.WeightDecay(params.weight_decay))
-		if params.gradient_clipping > 0:
-			opt.add_hook(GradientClipping(params.gradient_clipping))
+		if params.generative_model_weight_decay > 0:
+			opt.add_hook(optimizer.WeightDecay(params.generative_model_weight_decay))
+		if params.generative_model_gradient_clipping > 0:
+			opt.add_hook(GradientClipping(params.generative_model_gradient_clipping))
 		self.optimizer_generative_model = opt
 
 	def update_laerning_rate(self, lr):
