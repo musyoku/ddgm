@@ -18,7 +18,6 @@ class Params():
 		self.distribution_x = "universal"	# universal or sigmoid or tanh
 
 		self.energy_model_num_experts = 128
-		self.energy_model_feature_extractor_ndim_output = 128
 		self.energy_model_feature_extractor_hidden_channels = [64, 128, 256, 512]
 		self.energy_model_feature_extractor_stride = 2
 		self.energy_model_feature_extractor_ksize = 4
@@ -130,10 +129,13 @@ class DCDGM(DDGM):
 		self.visualize_network()
 
 	def create_network(self):
-		params = self.params
+		self.create_energy_model()
+		self.create_generative_model()
 
-		# deep energy model
+	def create_energy_model(self):
+		params = self.params
 		attributes = {}
+
 		# conv layers
 		channels = [(params.x_channels, params.energy_model_feature_extractor_hidden_channels[0])]
 		channels += zip(params.energy_model_feature_extractor_hidden_channels[:-1], params.energy_model_feature_extractor_hidden_channels[1:])
@@ -153,39 +155,54 @@ class DCDGM(DDGM):
 		attributes["b"] = L.Linear(params.x_width * params.x_height * params.x_channels, 1, wscale=params.energy_model_wscale, nobias=True)
 
 		# feature extractor
-		n_units_before_projection = input_width * input_width * params.energy_model_feature_extractor_hidden_channels[-1]
-		n_units_after_projection = params.energy_model_feature_extractor_ndim_output
-		attributes["feature_projector"] = L.Linear(n_units_before_projection, n_units_after_projection, wscale=params.energy_model_wscale)
-		attributes["batchnorm_projector"] = L.BatchNormalization(n_units_after_projection if params.energy_model_batchnorm_before_activation else n_units_before_projection)
-		attributes["feature_detector"] = L.Linear(n_units_after_projection, params.energy_model_num_experts, wscale=params.energy_model_wscale)
+		attributes["feature_detector"] = L.Linear(input_width * input_width * params.energy_model_feature_extractor_hidden_channels[-1], params.energy_model_num_experts, wscale=params.energy_model_wscale)
 
 		self.energy_model = DeepConvolutionalEnergyModel(params, n_layers=len(channels), **attributes)
 
-		# deep generative model
+	def create_generative_model(self):
+		params = self.params
 		attributes = {}
-		# conv layers
+
+		# deconv layers
 		channels = zip(params.generative_model_hidden_channels[:-1], params.generative_model_hidden_channels[1:])
 		channels += [(params.generative_model_hidden_channels[-1], params.x_channels)]
 		kernel_width = params.generative_model_ksize
 		stride = params.generative_model_stride
-		# compute projection size
-		output_width = params.x_width
-		for i, (n_in, n_out) in enumerate(channels):
-			input_width = get_deconv_insize(output_width, kernel_width, stride, 1)
-			# check
-			_output_width = get_deconv_outsize(input_width, kernel_width, stride, 1)
-			if output_width != _output_width:
-				raise Exception("deconvolution missmatch")
-			output_width = input_width
-		projection_width = input_width
 
+		# compute expected output_width of deconv layers
+		conv_input_width = params.x_width
+		deconv_expected_output_width_array = [conv_input_width]
 		for i, (n_in, n_out) in enumerate(channels):
-			attributes["layer_%i" % i] = L.Deconvolution2D(n_in, n_out, kernel_width, stride=stride, pad=1, wscale=params.generative_model_wscale)
+			pad = get_conv_padding(conv_input_width, kernel_width, stride)
+			conv_output_width = (conv_input_width + pad * 2 - kernel_width) // stride + 1
+
+			if conv_output_width == 0:
+				conv_output_width = 1
+				# self.visualize_generative_model()
+				# raise Exception("Since the number of deconvolution layer is too large, the size of the image from generator will become larger than the size of the input image. To solve the problem, it is advisable for you to reduce the number of layers or to increase the size of the input image.")
+				
+			conv_input_width = conv_output_width
+			deconv_expected_output_width_array = [conv_input_width] + deconv_expected_output_width_array
+		projected_width = conv_input_width
+
+		# compute the required padding
+		input_width = projected_width
+		paddings = []
+		for i, (n_in, n_out) in enumerate(channels):
+			pad = get_deconv_padding(input_width, deconv_expected_output_width_array[i + 1], kernel_width, stride)
+			output_width = get_deconv_outsize(input_width, kernel_width, stride, pad)
+			input_width = output_width
+			paddings.append(pad)
+
+		# create layers
+		for i, (n_in, n_out) in enumerate(channels):
+			pad = paddings[i]
+			attributes["layer_%i" % i] = L.Deconvolution2D(n_in, n_out, kernel_width, stride=stride, pad=pad, wscale=params.generative_model_wscale)
 			attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out if params.generative_model_batchnorm_before_activation else n_in)
 
 		# projecton layer
 		n_units_before_projection = params.ndim_z
-		n_units_after_projection = projection_width * projection_width * params.generative_model_hidden_channels[0]
+		n_units_after_projection = projected_width * projected_width * params.generative_model_hidden_channels[0]
 		attributes["noize_projector"] = L.Linear(n_units_before_projection, n_units_after_projection, wscale=params.generative_model_wscale)
 		attributes["batchnorm_projector"] = L.BatchNormalization(n_units_after_projection if params.generative_model_batchnorm_before_activation else n_units_before_projection)
 
@@ -198,13 +215,14 @@ class DCDGM(DDGM):
 		else:
 			raise Exception()
 
-		self.generative_model.projection_width = projection_width
-
+		self.generative_model.projected_width = projected_width
 
 	def visualize_network(self):
-		params = self.params
+		self.visualize_energy_model()
+		self.visualize_generative_model()
 
-		# deep energy model
+	def visualize_energy_model(self):
+		params = self.params
 		print "[Deep Energy Model]"
 		print "Input"
 		print "| size: {}x{}".format(params.x_width, params.x_height)
@@ -216,7 +234,7 @@ class DCDGM(DDGM):
 		kernel_width = params.energy_model_feature_extractor_ksize
 		stride = params.energy_model_feature_extractor_stride
 		input_width = params.x_width
-		deconv_input_width_array = [input_width]
+		conv_input_width_array = [input_width]
 		for i, (n_in, n_out) in enumerate(channels):
 			pad = get_conv_padding(input_width, kernel_width, stride)
 			output_width = (input_width + pad * 2 - kernel_width) // stride + 1
@@ -224,50 +242,65 @@ class DCDGM(DDGM):
 				raise Exception("output_width < kernel_width")
 			print "| (ch_in: {}, ch_out: {}, input_size: {}x{} output_size: {}x{} padding: {} stride: {})".format(n_in, n_out, input_width, input_width, output_width, output_width, pad, stride)
 			input_width = output_width
-			deconv_input_width_array = [input_width] + deconv_input_width_array
+			conv_input_width_array = [input_width] + conv_input_width_array
 		print "v"
 
 		# feature extractor
-		n_units_before_projection = input_width * input_width * params.energy_model_feature_extractor_hidden_channels[-1]
-		n_units_after_projection = params.energy_model_feature_extractor_ndim_output
+		n_units_after_reshaping = input_width * input_width * params.energy_model_feature_extractor_hidden_channels[-1]
 
 		print "Feature Extractor:"
-		print "| {}x{}x{} -> [projection] -> {}".format(input_width, input_width, params.energy_model_feature_extractor_hidden_channels[-1], n_units_after_projection)
+		print "| {}x{}x{} -> [reshape] -> {}".format(input_width, input_width, params.energy_model_feature_extractor_hidden_channels[-1], n_units_after_reshaping)
 		print "v"
 		print "Product of Experts:"
-		print "| {} -> {}".format(n_units_after_projection, params.energy_model_num_experts)
+		print "| {} -> {}".format(n_units_after_reshaping, params.energy_model_num_experts)
 		print "v"
 		print "Energy\n"
 
-		# deep generative model
+	def visualize_generative_model(self):
+		params = self.params
 		print "[Deep Generative Model]"
 		print "z"
 		print "| ndim: {}".format(params.ndim_z)
 		print "v"
 
-		# conv layers
 		channels = zip(params.generative_model_hidden_channels[:-1], params.generative_model_hidden_channels[1:])
 		channels += [(params.generative_model_hidden_channels[-1], params.x_channels)]
 		kernel_width = params.generative_model_ksize
 		stride = params.generative_model_stride
-		# compute projection size
-		output_width = params.x_width
-		deconv_input_width_array = [output_width]
+
+		# compute expected output_width of deconv layers
+		conv_input_width = params.x_width
+		deconv_expected_output_width_array = [conv_input_width]
 		for i, (n_in, n_out) in enumerate(channels):
-			input_width = get_deconv_insize(output_width, kernel_width, stride, 1)
-			output_width = input_width
-			deconv_input_width_array = [output_width] + deconv_input_width_array
-		projection_width = input_width
+			pad = get_conv_padding(conv_input_width, kernel_width, stride)
+			conv_output_width = (conv_input_width + pad * 2 - kernel_width) // stride + 1
+			if conv_output_width == 0:
+				conv_output_width = 1
+			conv_input_width = conv_output_width
+			deconv_expected_output_width_array = [conv_input_width] + deconv_expected_output_width_array
+		projected_width = conv_input_width
+
+		# compute required padding
+		input_width = projected_width
+		deconv_input_width_array = [input_width]
+		paddings = []
+		for i, (n_in, n_out) in enumerate(channels):
+			pad = get_deconv_padding(input_width, deconv_expected_output_width_array[i + 1], kernel_width, stride)
+			output_width = get_deconv_outsize(input_width, kernel_width, stride, pad)
+			input_width = output_width
+			deconv_input_width_array.append(output_width)
+			paddings = [pad] + paddings
 
 		print "Projection Layer:"
-		print "| ndim: {} -> [projection] -> size: {}x{}, ch: {}".format(params.ndim_z, projection_width, projection_width, params.generative_model_hidden_channels[0])
+		print "| ndim: {} -> [projection] -> size: {}x{}, ch: {}".format(params.ndim_z, projected_width, projected_width, params.generative_model_hidden_channels[0])
 		print "v"
 		print "Deconv Layer:"
 
 		for i, (n_in, n_out) in enumerate(channels):
 			input_width = deconv_input_width_array[i]
 			output_width = deconv_input_width_array[i + 1]
-			print "| (ch_in: {}, ch_out: {}, input_size: {}x{} output_size: {}x{} padding: {}, stride: {})".format(n_in, n_out, input_width, input_width, output_width, output_width, 1, stride)
+			pad = paddings[i]
+			print "| (ch_in: {}, ch_out: {}, input_size: {}x{} output_size: {}x{} padding: {}, stride: {})".format(n_in, n_out, input_width, input_width, output_width, output_width, pad, stride)
 
 		print "v"
 		print "x~"
@@ -285,7 +318,7 @@ class DeepConvolutionalGenerativeModel(DeepGenerativeModel):
 				projection = self.noize_projector(self.batchnorm_projector(z, test=self.test))
 		projection = f(projection)
 		batchsize = projection.data.shape[0]
-		return F.reshape(projection, (batchsize, -1, self.projection_width, self.projection_width))
+		return F.reshape(projection, (batchsize, -1, self.projected_width, self.projected_width))
 
 	def __call__(self, z, test=False):
 		self.test = test
@@ -328,6 +361,5 @@ class DeepConvolutionalEnergyModel(DeepEnergyModel):
 		features = self.extract_features(x)
 		batchsize = features.data.shape[0]
 		features = F.reshape(features, (batchsize, -1))
-		features = self.project_features(features)
 		energy, experts = self.compute_energy(x, features)
 		return energy, experts
