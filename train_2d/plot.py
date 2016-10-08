@@ -4,22 +4,7 @@ sys.path.append(os.path.split(os.getcwd())[0])
 import visualizer
 from args import args
 from model import params, ddgm
-
-def sample_from_data(batchsize, n_dim, n_labels):
-	def sample(label, n_labels):
-		uni = np.random.uniform(0.0, 1.0) / float(n_labels) + float(label) / float(n_labels)
-		r = math.sqrt(uni) * 3.0
-		rad = np.pi * 4.0 * math.sqrt(uni)
-		x = r * math.cos(rad)
-		y = r * math.sin(rad)
-		return np.array([x, y]).reshape((2,))
-
-	z = np.zeros((batchsize, n_dim), dtype=np.float32)
-	for batch in xrange(batchsize):
-		for zi in xrange(n_dim / 2):
-			z[batch, zi*2:zi*2+2] = sample(random.randint(0, n_labels - 1), n_labels)
-	
-	return z
+import sampler
 
 def main():
 	try:
@@ -27,7 +12,7 @@ def main():
 	except:
 		pass
 
-	x_positive = sample_from_data(1000, 2, 10)
+	x_positive = sampler.sample_from_gaussian_mixture(1000, 2, 10)
 	visualizer.plot_z(x_positive, dir=args.plot_dir, filename="positive", xticks_range=4, yticks_range=4)
 
 	x_negative = ddgm.generate_x(1000, test=True)

@@ -18,7 +18,7 @@ def sample_from_data(images, batchsize):
 		data_index = indices[j]
 		image_rgba = images[data_index]
 		image_rgb = image_rgba[:3, :, :]
-		x_batch[j] = image_rgb
+		x_batch[j] = (image_rgb - 0.5) * 10
 	return x_batch
 
 def main():
@@ -27,7 +27,7 @@ def main():
 	
 	# settings
 	max_epoch = 1000
-	n_trains_per_epoch = 200
+	n_trains_per_epoch = 100
 	batchsize_positive = 64
 	batchsize_negative = 64
 
@@ -48,11 +48,19 @@ def main():
 			x_positive = sample_from_data(images, batchsize_positive)
 
 			# train energy model
-			x_negative = dcdgm.generate_x(batchsize_negative)
-			loss, energy_positive, energy_negative = dcdgm.compute_loss(x_positive, x_negative)
+			# energy_positive, experts_positive = dcdgm.compute_energy(x_positive)
+			# energy_positive = F.sum(energy_positive) / dcdgm.get_batchsize(x_positive)
 			# dcdgm.backprop_energy_model(energy_positive)
+			
+			x_negative = dcdgm.generate_x(batchsize_negative)
+			# energy_negative, experts_negative = dcdgm.compute_energy(x_negative)
+			# energy_negative = F.sum(energy_negative) / dcdgm.get_batchsize(x_negative)
 			# dcdgm.backprop_energy_model(-energy_negative)
-			dcdgm.backprop_energy_model(loss)
+
+			loss, energy_positive, energy_negative = dcdgm.compute_loss(x_positive, x_negative.data)
+			dcdgm.backprop_energy_model(energy_positive)
+			dcdgm.backprop_energy_model(-energy_negative)
+			# dcdgm.backprop_energy_model(loss)
 
 			# train generative model
 			# TODO: KLD must be greater than or equal to 0

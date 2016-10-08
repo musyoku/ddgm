@@ -294,7 +294,10 @@ class DDGM():
 		for attr in vars(self):
 			prop = getattr(self, attr)
 			if isinstance(prop, chainer.Chain) or isinstance(prop, chainer.optimizer.GradientMethod):
-				serializers.save_hdf5(dir + "/{}.hdf5".format(attr), prop)
+				filename = dir + "/{}.hdf5".format(attr)
+				if os.path.isfile(filename):
+					os.remove(filename)
+				serializers.save_hdf5(filename, prop)
 		print "model saved."
 
 class DeepGenerativeModel(chainer.Chain):

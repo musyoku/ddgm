@@ -311,6 +311,8 @@ class DeepConvolutionalGenerativeModel(DeepGenerativeModel):
 		f = activations[self.activation_function]
 		if self.batchnorm_enabled == False:
 			projection = self.noize_projector(z)
+		elif self.batchnorm_to_input == False:
+			projection = self.noize_projector(z)
 		else:
 			if self.batchnorm_before_activation:
 				projection = self.batchnorm_projector(self.noize_projector(z), test=self.test)
@@ -319,6 +321,39 @@ class DeepConvolutionalGenerativeModel(DeepGenerativeModel):
 		projection = f(projection)
 		batchsize = projection.data.shape[0]
 		return F.reshape(projection, (batchsize, -1, self.projected_width, self.projected_width))
+
+
+	def compute_output(self, z):
+		f = activations[self.activation_function]
+		chain = [z]
+
+		for i in range(self.n_layers):
+			u = chain[-1]
+
+			if self.batchnorm_before_activation:
+				u = getattr(self, "layer_%i" % i)(u)
+
+			if self.batchnorm_enabled:
+				bn = getattr(self, "batchnorm_%d" % i)
+				if i == self.n_layers - 1:
+					if self.batchnorm_before_activation == False:
+						u = bn(u, test=self.test)
+				else:
+					u = bn(u, test=self.test)
+
+			if self.batchnorm_before_activation == False:
+				u = getattr(self, "layer_%i" % i)(u)
+
+			if i == self.n_layers - 1:
+				output = u
+			else:
+				output = f(u)
+				if self.apply_dropout:
+					output = F.dropout(output, train=not self.test)
+
+			chain.append(output)
+
+		return chain[-1]
 
 	def __call__(self, z, test=False):
 		self.test = test

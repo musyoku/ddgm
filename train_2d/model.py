@@ -25,14 +25,20 @@ else:
 	params.ndim_x = 2
 	params.ndim_z = 4
 	params.apply_dropout = False
+	params.distribution_x = "universal"
 
 	params.energy_model_num_experts = 4
-	params.energy_model_features_hidden_units = [128, 128]
+	params.energy_model_feature_extractor_hidden_units = [128, 128]
 	params.energy_model_batchnorm_to_input = False
 	params.energy_model_batchnorm_before_activation = False
 	params.energy_model_batchnorm_enabled = False
 	params.energy_model_wscale = 1
 	params.energy_model_activation_function = "elu"
+	params.energy_model_optimizer = "Adam"
+	params.energy_model_learning_rate = 0.001
+	params.energy_model_momentum = 0.5
+	params.energy_model_gradient_clipping = 10
+	params.energy_model_weight_decay = 0
 
 	params.generative_model_hidden_units = [128, 128]
 	params.generative_model_batchnorm_to_input = False
@@ -40,10 +46,12 @@ else:
 	params.generative_model_batchnorm_enabled = True
 	params.generative_model_wscale = 1
 	params.generative_model_activation_function = "elu"
+	params.generative_model_optimizer = "Adam"
+	params.generative_model_learning_rate = 0.001
+	params.generative_model_momentum = 0.5
+	params.generative_model_gradient_clipping = 10
+	params.generative_model_weight_decay = 0
 
-	params.gradient_clipping = 10
-	params.weight_decay = 0
-	params.learning_rate = 0.01
 	params.gpu_enabled = True if args.gpu_enabled == 1 else False
 
 	params.check()

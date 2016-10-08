@@ -6,32 +6,7 @@ from chainer import functions as F
 sys.path.append(os.path.split(os.getcwd())[0])
 from model import params, ddgm
 from args import args
-from dataset import binarize_data, load_images
-import dataset
-
-def sample_from_gaussian_mixture(batchsize, n_dim, n_labels):
-	if n_dim % 2 != 0:
-		raise Exception("n_dim must be a multiple of 2.")
-
-	def sample(x, y, label, n_labels):
-		shift = 1.4
-		r = 2.0 * np.pi / float(n_labels) * float(label)
-		new_x = x * math.cos(r) - y * math.sin(r)
-		new_y = x * math.sin(r) + y * math.cos(r)
-		new_x += shift * math.cos(r)
-		new_y += shift * math.sin(r)
-		return np.array([new_x, new_y]).reshape((2,))
-
-	x_var = 0.5
-	y_var = 0.05
-	x = np.random.normal(0, x_var, (batchsize, n_dim / 2))
-	y = np.random.normal(0, y_var, (batchsize, n_dim / 2))
-	z = np.empty((batchsize, n_dim), dtype=np.float32)
-	for batch in xrange(batchsize):
-		for zi in xrange(n_dim / 2):
-			z[batch, zi*2:zi*2+2] = sample(x[batch, zi], y[batch, zi], random.randint(0, n_labels - 1), n_labels)
-
-	return z
+import sampler
 
 def plot(z, color="blue", s=40):
 	for n in xrange(z.shape[0]):
@@ -62,7 +37,7 @@ def main():
 		cuda.cupy.random.seed(args.seed)
 
 	fixed_z = ddgm.sample_z(plotsize)
-	fixed_target = sample_from_gaussian_mixture(600, params.ndim_x, 5)
+	fixed_target = sampler.sample_from_gaussian_mixture(600, params.ndim_x, 5)
 
 	total_time = 0
 	for epoch in xrange(1, max_epoch):
@@ -73,7 +48,7 @@ def main():
 
 		for t in xrange(n_trains_per_epoch):
 			# sample from data distribution
-			x_positive = sample_from_gaussian_mixture(batchsize_positive, params.ndim_x, 5)
+			x_positive = sampler.sample_from_gaussian_mixture(batchsize_positive, params.ndim_x, 5)
 
 			# train energy model
 			x_negative = ddgm.generate_x(batchsize_negative)
