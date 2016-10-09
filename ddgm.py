@@ -6,6 +6,7 @@ from chainer import cuda, Variable, optimizers, serializers, function, optimizer
 from chainer.utils import type_check
 from chainer import functions as F
 from chainer import links as L
+from softplus import softplus
 
 activations = {
 	"sigmoid": F.sigmoid, 
@@ -434,7 +435,8 @@ class DeepEnergyModel(chainer.Chain):
 
 		# avoid overflow
 		# -log(1 + exp(x)) = -max(0, x) - log(1 + exp(-|x|)) = -softplus
-		experts = -F.softplus(feature_detector)
+		xp = self.xp
+		experts = -softplus(feature_detector)
 
 		sigma = 1.0
 		energy = F.sum(x * x, axis=1) / sigma - F.reshape(self.b(x), (-1,)) + F.sum(experts, axis=1)

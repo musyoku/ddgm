@@ -7,6 +7,7 @@ from chainer.utils import type_check
 from chainer import functions as F
 from chainer import links as L
 from ddgm import DDGM, activations, DeepGenerativeModel, DeepEnergyModel
+from softplus import softplus
 
 class Params():
 	def __init__(self, dict=None):
@@ -382,7 +383,7 @@ class DeepConvolutionalEnergyModel(DeepEnergyModel):
 
 		# avoid overflow
 		# -log(1 + exp(x)) = -max(0, x) - log(1 + exp(-|x|)) = -softplus
-		experts = -F.softplus(feature_detector)
+		experts = -softplus(feature_detector)
 
 		sigma = 1.0
 		batchsize = x.data.shape[0]
