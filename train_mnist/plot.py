@@ -13,7 +13,9 @@ def main():
 	x_negative = ddgm.generate_x(100, test=True)
 	if params.gpu_enabled:
 		x_negative.to_cpu()
-	visualizer.tile_x(x_negative.data, dir=args.plot_dir)
+	x_negative = x_negative.data
+	x_negative = np.clip((x_negative + 1) / 2, 0, 1)
+	visualizer.tile_x(x_negative, dir=args.plot_dir)
 
 if __name__ == '__main__':
 	main()

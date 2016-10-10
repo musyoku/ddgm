@@ -25,12 +25,12 @@ else:
 	params.x_width = 40
 	params.x_height = params.x_width
 	params.x_channels = 3
-	params.ndim_z = 6
+	params.ndim_z = 100
 	params.apply_dropout = False
 	params.distribution_x = "universal"	# universal or sigmoid or tanh
 
-	params.energy_model_num_experts = 32
-	params.energy_model_feature_extractor_hidden_channels = [8, 16, 32, 64]
+	params.energy_model_num_experts = 128
+	params.energy_model_feature_extractor_hidden_channels = [32, 64, 128, 256]
 	params.energy_model_feature_extractor_stride = 2
 	params.energy_model_feature_extractor_ksize = 4
 	params.energy_model_batchnorm_to_input = False
@@ -38,13 +38,13 @@ else:
 	params.energy_model_batchnorm_enabled = False
 	params.energy_model_wscale = 0.1
 	params.energy_model_activation_function = "elu"
-	params.energy_model_optimizer = "Adam"
-	params.energy_model_learning_rate = 0.0003
+	params.energy_model_optimizer = "AdaGrad"
+	params.energy_model_learning_rate = 0.001
 	params.energy_model_momentum = 0.9
 	params.energy_model_gradient_clipping = 10
 	params.energy_model_weight_decay = 0.0
 
-	params.generative_model_hidden_channels = [64, 32, 16, 8]
+	params.generative_model_hidden_channels = [256, 128, 64, 32]
 	params.generative_model_stride = 2
 	params.generative_model_ksize = 4
 	params.generative_model_batchnorm_to_input = False
@@ -52,7 +52,7 @@ else:
 	params.generative_model_batchnorm_enabled = True
 	params.generative_model_wscale = 0.1
 	params.generative_model_activation_function = "elu"
-	params.generative_model_optimizer = "Adam"
+	params.generative_model_optimizer = "AdaGrad"
 	params.generative_model_learning_rate = 0.0003
 	params.generative_model_momentum = 0.5
 	params.generative_model_gradient_clipping = 10

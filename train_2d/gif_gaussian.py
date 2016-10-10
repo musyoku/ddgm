@@ -1,4 +1,3 @@
-from scipy.io import wavfile
 import numpy as np
 import os, sys, time, random, math, pylab
 from chainer import cuda

@@ -28,23 +28,30 @@ else:
 	params.distribution_x = "tanh"
 
 	params.energy_model_num_experts = 128
-	params.energy_model_feature_extractor_hidden_units = [600]
+	params.energy_model_feature_extractor_hidden_units = [600, 600]
 	params.energy_model_batchnorm_to_input = False
 	params.energy_model_batchnorm_before_activation = False
 	params.energy_model_batchnorm_enabled = False
 	params.energy_model_wscale = 1
 	params.energy_model_activation_function = "elu"
+	params.energy_model_optimizer = "AdaGrad"
+	params.energy_model_learning_rate = 0.001
+	params.energy_model_momentum = 0.5
+	params.energy_model_gradient_clipping = 10
+	params.energy_model_weight_decay = 0
 
 	params.generative_model_hidden_units = [600, 600]
 	params.generative_model_batchnorm_to_input = False
-	params.generative_model_batchnorm_before_activation = True
+	params.generative_model_batchnorm_before_activation = False
 	params.generative_model_batchnorm_enabled = True
-	params.generative_model_wscale = 1
+	params.generative_model_wscale = 0.1
 	params.generative_model_activation_function = "elu"
+	params.generative_model_optimizer = "AdaGrad"
+	params.generative_model_learning_rate = 0.0003
+	params.generative_model_momentum = 0.1
+	params.generative_model_gradient_clipping = 10
+	params.generative_model_weight_decay = 0
 
-	params.gradient_clipping = 10
-	params.weight_decay = 0
-	params.learning_rate = 0.001
 	params.gpu_enabled = True if args.gpu_enabled == 1 else False
 
 	params.check()

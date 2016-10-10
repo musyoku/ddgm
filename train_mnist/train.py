@@ -15,7 +15,7 @@ def sample_from_data(images, batchsize):
 	indices = np.random.choice(np.arange(len(images), dtype=np.int32), size=batchsize, replace=False)
 	for j in range(batchsize):
 		data_index = indices[j]
-		img = images[data_index]
+		img = (images[data_index] - 0.5) * 2
 		x_batch[j] = img.reshape((ndim_x,))
 
 	# binalize

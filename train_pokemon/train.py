@@ -13,7 +13,7 @@ def sample_from_data(images, batchsize):
 	height = example.shape[1]
 	width = example.shape[2]
 	x_batch = np.zeros((batchsize, 3, width, height), dtype=np.float32)
-	indices = np.random.choice(np.arange(6, dtype=np.int32), size=batchsize, replace=False)
+	indices = np.random.choice(np.arange(len(images), dtype=np.int32), size=batchsize, replace=False)
 	for j in range(batchsize):
 		data_index = indices[j]
 		image_rgba = images[data_index]
@@ -28,8 +28,8 @@ def main():
 	# settings
 	max_epoch = 1000
 	n_trains_per_epoch = 500
-	batchsize_positive = 6
-	batchsize_negative = 6
+	batchsize_positive = 128
+	batchsize_negative = 128
 
 	# seed
 	np.random.seed(args.seed)
@@ -48,18 +48,18 @@ def main():
 			x_positive = sample_from_data(images, batchsize_positive)
 
 			# train energy model
-			energy_positive, experts_positive = dcdgm.compute_energy(x_positive)
-			energy_positive = F.sum(energy_positive) / dcdgm.get_batchsize(x_positive)
-			dcdgm.backprop_energy_model(energy_positive)
+			# energy_positive, experts_positive = dcdgm.compute_energy(x_positive)
+			# energy_positive = F.sum(energy_positive) / dcdgm.get_batchsize(x_positive)
+			# dcdgm.backprop_energy_model(energy_positive)
 			
 			x_negative = dcdgm.generate_x(batchsize_negative)
-			energy_negative, experts_negative = dcdgm.compute_energy(x_negative)
-			energy_negative = F.sum(energy_negative) / dcdgm.get_batchsize(x_negative)
-			dcdgm.backprop_energy_model(-energy_negative)
-
-			# loss, energy_positive, energy_negative = dcdgm.compute_loss(x_positive, x_negative.data)
-			# dcdgm.backprop_energy_model(energy_positive)
+			# energy_negative, experts_negative = dcdgm.compute_energy(x_negative)
+			# energy_negative = F.sum(energy_negative) / dcdgm.get_batchsize(x_negative)
 			# dcdgm.backprop_energy_model(-energy_negative)
+
+			loss, energy_positive, energy_negative = dcdgm.compute_loss(x_positive, x_negative.data)
+			dcdgm.backprop_energy_model(energy_positive)
+			dcdgm.backprop_energy_model(-energy_negative)
 			# dcdgm.backprop_energy_model(loss)
 
 			# train generative model
