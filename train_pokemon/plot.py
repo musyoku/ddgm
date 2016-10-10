@@ -15,10 +15,9 @@ def main():
 	if params.gpu_enabled:
 		x_negative.to_cpu()
 	x_negative = x_negative.data
-	x_negative = (x_negative + 5) / 10
 	rgba_image = np.ones((100, 4, params.x_height, params.x_width), dtype=np.float32)
-	rgba_image[:,:3,:,:] = (x_negative + 1) / 2
-	visualizer.tile_x(x_negative.transpose(0, 2, 3, 1), dir=args.plot_dir, image_width=params.x_width, image_height=params.x_height, image_channel=3)
+	rgba_image[:,:3,:,:] = np.clip((x_negative + 1) / 2, 0, 1)
+	visualizer.tile_x(rgba_image.transpose(0, 2, 3, 1), dir=args.plot_dir, image_width=params.x_width, image_height=params.x_height, image_channel=3)
 
 if __name__ == '__main__':
 	main()

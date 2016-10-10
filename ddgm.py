@@ -435,7 +435,6 @@ class DeepEnergyModel(chainer.Chain):
 
 		# avoid overflow
 		# -log(1 + exp(x)) = -max(0, x) - log(1 + exp(-|x|)) = -softplus
-		xp = self.xp
 		experts = -softplus(feature_detector)
 
 		sigma = 1.0

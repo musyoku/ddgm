@@ -35,7 +35,7 @@ else:
 	params.energy_model_wscale = 1
 	params.energy_model_activation_function = "elu"
 	params.energy_model_optimizer = "Adam"
-	params.energy_model_learning_rate = 0.001
+	params.energy_model_learning_rate = 0.0001
 	params.energy_model_momentum = 0.5
 	params.energy_model_gradient_clipping = 10
 	params.energy_model_weight_decay = 0
@@ -44,11 +44,11 @@ else:
 	params.generative_model_batchnorm_to_input = False
 	params.generative_model_batchnorm_before_activation = False
 	params.generative_model_batchnorm_enabled = True
-	params.generative_model_wscale = 1
+	params.generative_model_wscale = 0.1
 	params.generative_model_activation_function = "elu"
 	params.generative_model_optimizer = "Adam"
-	params.generative_model_learning_rate = 0.001
-	params.generative_model_momentum = 0.5
+	params.generative_model_learning_rate = 0.0001
+	params.generative_model_momentum = 0.1
 	params.generative_model_gradient_clipping = 10
 	params.generative_model_weight_decay = 0
 

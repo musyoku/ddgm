@@ -1,14 +1,17 @@
 import numpy
 import chainer
 from chainer import cuda
+from chainer import utils
+from chainer.functions.activation import softplus
 
-class Softplus(chainer.functions.activation.softplus.Softplus):
+class Softplus(softplus.Softplus):
 
 	def backward_cpu(self, inputs, grads):
 		x, = inputs
 		g, = grads
 		sigmoid = numpy.tanh(-self.beta * x * 0.5) * 0.5 + 0.5
-		return (1 - sigmoid) * g,
+		gx = (1 - sigmoid) * g
+		return utils.force_array(gx, x.dtype),
 
 	def backward_gpu(self, inputs, grads):
 		x, = inputs
