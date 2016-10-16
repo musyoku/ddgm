@@ -18,9 +18,6 @@ def sample_from_data(images, batchsize):
 		img = (images[data_index] - 0.5) * 2
 		x_batch[j] = img.reshape((ndim_x,))
 
-	# binalize
-	x_batch = binarize_data(x_batch)
-
 	return x_batch
 
 def main():
@@ -29,7 +26,7 @@ def main():
 	
 	# settings
 	max_epoch = 1000
-	n_trains_per_epoch = 5000
+	n_trains_per_epoch = 1000
 	batchsize_positive = 128
 	batchsize_negative = 128
 
@@ -48,13 +45,19 @@ def main():
 		for t in xrange(n_trains_per_epoch):
 			# sample from data distribution
 			x_positive = sample_from_data(images, batchsize_positive)
-
-			# train energy model
 			x_negative = ddgm.generate_x(batchsize_negative)
-			loss, energy_positive, energy_negative = ddgm.compute_loss(x_positive, x_negative)
-			# ddgm.backprop_energy_model(energy_positive)
-			# ddgm.backprop_energy_model(-energy_negative)
-			ddgm.backprop_energy_model(loss)
+
+			if False:
+				loss, energy_positive, energy_negative = ddgm.compute_loss(x_positive, x_negative)
+				ddgm.backprop_energy_model(loss)
+			else:
+				energy_positive, experts_positive = ddgm.compute_energy(x_positive)
+				energy_positive = F.sum(energy_positive) / ddgm.get_batchsize(x_positive)
+				ddgm.backprop_energy_model(energy_positive)
+				
+				energy_negative, experts_negative = ddgm.compute_energy(x_negative)
+				energy_negative = F.sum(energy_negative) / ddgm.get_batchsize(x_negative)
+				ddgm.backprop_energy_model(-energy_negative)
 
 			# train generative model
 			# TODO: KLD must be greater than or equal to 0

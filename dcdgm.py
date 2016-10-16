@@ -145,7 +145,8 @@ class DCDGM(DDGM):
 		input_width = params.x_width
 		for i, (n_in, n_out) in enumerate(channels):
 			pad = get_conv_padding(input_width, kernel_width, stride)
-			attributes["layer_%i" % i] = L.Convolution2D(n_in, n_out, kernel_width, stride=stride, pad=pad, wscale=params.energy_model_wscale)
+			initialW = np.random.normal(loc=0, scale= params.energy_model_wscale, size=(n_out, n_in, kernel_width, kernel_width))
+			attributes["layer_%i" % i] = L.Convolution2D(n_in, n_out, kernel_width, stride=stride, pad=pad, initialW=initialW)
 			attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out if params.energy_model_batchnorm_before_activation else n_in)
 			output_width = (input_width + pad * 2 - kernel_width) // stride + 1
 			# check
@@ -198,7 +199,8 @@ class DCDGM(DDGM):
 		# create layers
 		for i, (n_in, n_out) in enumerate(channels):
 			pad = paddings[i]
-			attributes["layer_%i" % i] = L.Deconvolution2D(n_in, n_out, kernel_width, stride=stride, pad=pad, wscale=params.generative_model_wscale)
+			initialW = np.random.normal(loc=0, scale= params.generative_model_wscale, size=(n_in, n_out, kernel_width, kernel_width))
+			attributes["layer_%i" % i] = L.Deconvolution2D(n_in, n_out, kernel_width, stride=stride, pad=pad, initialW=initialW)
 			attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out if params.generative_model_batchnorm_before_activation else n_in)
 
 		# projecton layer

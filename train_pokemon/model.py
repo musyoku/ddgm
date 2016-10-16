@@ -27,7 +27,7 @@ else:
 	params.x_channels = 3
 	params.ndim_z = 100
 	params.apply_dropout = False
-	params.distribution_x = "universal"	# universal or sigmoid or tanh
+	params.distribution_x = "tanh"	# universal or sigmoid or tanh
 
 	params.energy_model_num_experts = 128
 	params.energy_model_feature_extractor_hidden_channels = [32, 64, 128, 256]
@@ -39,7 +39,7 @@ else:
 	params.energy_model_wscale = 0.1
 	params.energy_model_activation_function = "elu"
 	params.energy_model_optimizer = "AdaGrad"
-	params.energy_model_learning_rate = 0.001
+	params.energy_model_learning_rate = 0.0003
 	params.energy_model_momentum = 0.9
 	params.energy_model_gradient_clipping = 10
 	params.energy_model_weight_decay = 0.0

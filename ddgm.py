@@ -129,7 +129,7 @@ class DDGM():
 
 		attributes["b"] = L.Linear(params.ndim_x, 1, wscale=params.energy_model_wscale, nobias=True)
 		attributes["feature_detector"] = L.Linear(params.energy_model_feature_extractor_hidden_units[-1], params.energy_model_num_experts, wscale=params.energy_model_wscale)
-
+		
 		self.energy_model = DeepEnergyModel(params, n_layers=len(units), **attributes)
 
 		# deep generative model
@@ -231,6 +231,9 @@ class DDGM():
 	def compute_energy(self, x_batch, test=False):
 		x_batch = self.to_variable(x_batch)
 		return self.energy_model(x_batch, test=test)
+
+	def compute_entropy(self):
+		return self.generative_model.compute_entropy()
 
 	def sample_z(self, batchsize=1):
 		# uniform

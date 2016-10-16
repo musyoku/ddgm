@@ -25,7 +25,7 @@ else:
 	params.ndim_x = 28 * 28
 	params.ndim_z = 10
 	params.apply_dropout = False
-	params.distribution_x = "tanh"
+	params.distribution_x = "universal"
 
 	params.energy_model_num_experts = 128
 	params.energy_model_feature_extractor_hidden_units = [600, 600]
@@ -35,16 +35,16 @@ else:
 	params.energy_model_wscale = 1
 	params.energy_model_activation_function = "elu"
 	params.energy_model_optimizer = "AdaGrad"
-	params.energy_model_learning_rate = 0.001
+	params.energy_model_learning_rate = 0.0003
 	params.energy_model_momentum = 0.5
 	params.energy_model_gradient_clipping = 10
 	params.energy_model_weight_decay = 0
 
-	params.generative_model_hidden_units = [600, 600]
+	params.generative_model_hidden_units = [1800, 1800]
 	params.generative_model_batchnorm_to_input = False
 	params.generative_model_batchnorm_before_activation = False
 	params.generative_model_batchnorm_enabled = True
-	params.generative_model_wscale = 0.1
+	params.generative_model_wscale = 0.01
 	params.generative_model_activation_function = "elu"
 	params.generative_model_optimizer = "AdaGrad"
 	params.generative_model_learning_rate = 0.0003
