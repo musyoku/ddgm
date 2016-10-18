@@ -364,6 +364,7 @@ class DeepConvolutionalGenerativeModel(DeepGenerativeModel):
 
 class SigmoidDeepConvolutionalGenerativeModel(DeepConvolutionalGenerativeModel):
 	def __call__(self, z, test=False):
+		self.test = test
 		return F.sigmoid(self.compute_output(self.project_z(z)))
 
 class TanhDeepConvolutionalGenerativeModel(DeepConvolutionalGenerativeModel):

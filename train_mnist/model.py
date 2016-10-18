@@ -42,7 +42,7 @@ else:
 
 	params.generative_model_hidden_units = [1800, 1800]
 	params.generative_model_batchnorm_to_input = False
-	params.generative_model_batchnorm_before_activation = False
+	params.generative_model_batchnorm_before_activation = True
 	params.generative_model_batchnorm_enabled = True
 	params.generative_model_wscale = 0.01
 	params.generative_model_activation_function = "elu"

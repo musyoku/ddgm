@@ -5,31 +5,35 @@ from chainer import functions as F
 sys.path.append(os.path.split(os.getcwd())[0])
 from model import params, dcdgm
 from args import args
-from dataset import binarize_data, load_images
-import dataset
+from dataset import binarize_data, load_rgba_images
+from plot import plot
 
 def sample_from_data(images, batchsize):
 	example = images[0]
 	height = example.shape[1]
 	width = example.shape[2]
-	x_batch = np.zeros((batchsize, 3, width, height), dtype=np.float32)
+	x_batch = np.zeros((batchsize, 3, height, width), dtype=np.float32)
 	indices = np.random.choice(np.arange(len(images), dtype=np.int32), size=batchsize, replace=False)
 	for j in range(batchsize):
 		data_index = indices[j]
 		image_rgba = images[data_index]
-		image_rgb = image_rgba[:3, :, :]
-		x_batch[j] = (image_rgb - 0.5) * 2
+		mask = np.repeat(image_rgba[3].reshape((-1, height, width)), 3, axis=0)
+		image_rgb = image_rgba[:3] * mask
+		# x_batch[j] *= 1 - mask
+		# x_batch[j] += image_rgb
+		x_batch[j] = image_rgb
 	return x_batch
 
 def main():
 	# load MNIST images
-	images = load_images(args.image_dir, is_grayscale=False)
+	images = load_rgba_images(args.image_dir)
 	
 	# settings
 	max_epoch = 1000
 	n_trains_per_epoch = 500
 	batchsize_positive = 128
 	batchsize_negative = 128
+	plot_interval = 10
 
 	# seed
 	np.random.seed(args.seed)
@@ -47,20 +51,20 @@ def main():
 			# sample from data distribution
 			x_positive = sample_from_data(images, batchsize_positive)
 
-			# train energy model
-			# energy_positive, experts_positive = dcdgm.compute_energy(x_positive)
-			# energy_positive = F.sum(energy_positive) / dcdgm.get_batchsize(x_positive)
-			# dcdgm.backprop_energy_model(energy_positive)
-			
+			# sample from generator
 			x_negative = dcdgm.generate_x(batchsize_negative)
-			# energy_negative, experts_negative = dcdgm.compute_energy(x_negative)
-			# energy_negative = F.sum(energy_negative) / dcdgm.get_batchsize(x_negative)
-			# dcdgm.backprop_energy_model(-energy_negative)
 
-			loss, energy_positive, energy_negative = dcdgm.compute_loss(x_positive, x_negative.data)
-			dcdgm.backprop_energy_model(energy_positive)
-			dcdgm.backprop_energy_model(-energy_negative)
-			# dcdgm.backprop_energy_model(loss)
+			if True:
+				loss, energy_positive, energy_negative = dcdgm.compute_loss(x_positive, x_negative)
+				dcdgm.backprop_energy_model(loss)
+			else:
+				energy_positive, experts_positive = dcdgm.compute_energy(x_positive)
+				energy_positive = F.sum(energy_positive) / dcdgm.get_batchsize(x_positive)
+				dcdgm.backprop_energy_model(energy_positive)
+				
+				energy_negative, experts_negative = dcdgm.compute_energy(x_negative)
+				energy_negative = F.sum(energy_negative) / dcdgm.get_batchsize(x_negative)
+				dcdgm.backprop_energy_model(-energy_negative)
 
 			# train generative model
 			# TODO: KLD must be greater than or equal to 0
@@ -81,6 +85,9 @@ def main():
 		print "epoch: {} energy: x+ {:.3f} x- {:.3f} kld: {:.3f} time: {} min total: {} min".format(epoch + 1, sum_energy_positive / n_trains_per_epoch, sum_energy_negative / n_trains_per_epoch, sum_kld / n_trains_per_epoch, int(epoch_time / 60), int(total_time / 60))
 		sys.stdout.flush()
 		dcdgm.save(args.model_dir)
+
+		if epoch % plot_interval == 0:
+			plot(filename="epoch_{}_time_{}min".format(epoch, int(total_time / 60)))
 
 if __name__ == '__main__':
 	main()
