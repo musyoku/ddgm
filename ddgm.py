@@ -7,6 +7,7 @@ from chainer.utils import type_check
 from chainer import functions as F
 from chainer import links as L
 from softplus import softplus
+import weightnorm as WN
 
 activations = {
 	"sigmoid": F.sigmoid, 
@@ -121,14 +122,14 @@ class DDGM():
 		units = [(params.ndim_x, params.energy_model_feature_extractor_hidden_units[0])]
 		units += zip(params.energy_model_feature_extractor_hidden_units[:-1], params.energy_model_feature_extractor_hidden_units[1:])
 		for i, (n_in, n_out) in enumerate(units):
-			attributes["layer_%i" % i] = L.Linear(n_in, n_out, wscale=params.energy_model_wscale)
+			attributes["layer_%i" % i] = WN.Linear(n_in, n_out, wscale=params.energy_model_wscale)
 			if params.energy_model_batchnorm_before_activation:
 				attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out)
 			else:
 				attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
 
-		attributes["b"] = L.Linear(params.ndim_x, 1, wscale=params.energy_model_wscale, nobias=True)
-		attributes["feature_detector"] = L.Linear(params.energy_model_feature_extractor_hidden_units[-1], params.energy_model_num_experts, wscale=params.energy_model_wscale)
+		attributes["b"] = WN.Linear(params.ndim_x, 1, wscale=params.energy_model_wscale, nobias=True)
+		attributes["feature_detector"] = WN.Linear(params.energy_model_feature_extractor_hidden_units[-1], params.energy_model_num_experts, wscale=params.energy_model_wscale)
 		
 		self.energy_model = DeepEnergyModel(params, n_layers=len(units), **attributes)
 
@@ -138,7 +139,7 @@ class DDGM():
 		units += zip(params.generative_model_hidden_units[:-1], params.generative_model_hidden_units[1:])
 		units += [(params.generative_model_hidden_units[-1], params.ndim_x)]
 		for i, (n_in, n_out) in enumerate(units):
-			attributes["layer_%i" % i] = L.Linear(n_in, n_out, wscale=params.generative_model_wscale)
+			attributes["layer_%i" % i] = WN.Linear(n_in, n_out, wscale=params.generative_model_wscale)
 			if params.generative_model_batchnorm_before_activation:
 				attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out)
 			else:

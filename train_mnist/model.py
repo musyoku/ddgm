@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import math
 import json, os, sys
 from args import args
 sys.path.append(os.path.split(os.getcwd())[0])
@@ -25,32 +26,32 @@ else:
 	params.ndim_x = 28 * 28
 	params.ndim_z = 10
 	params.apply_dropout = False
-	params.distribution_x = "universal"
+	params.distribution_x = "sigmoid"
 
 	params.energy_model_num_experts = 128
 	params.energy_model_feature_extractor_hidden_units = [600, 600]
 	params.energy_model_batchnorm_to_input = False
 	params.energy_model_batchnorm_before_activation = False
 	params.energy_model_batchnorm_enabled = False
-	params.energy_model_wscale = 1
+	params.energy_model_wscale = math.sqrt(0.02)
 	params.energy_model_activation_function = "elu"
-	params.energy_model_optimizer = "AdaGrad"
-	params.energy_model_learning_rate = 0.0003
+	params.energy_model_optimizer = "Adam"
+	params.energy_model_learning_rate = 0.00002
 	params.energy_model_momentum = 0.5
 	params.energy_model_gradient_clipping = 10
-	params.energy_model_weight_decay = 0
+	params.energy_model_weight_decay = 0.0000025
 
-	params.generative_model_hidden_units = [1800, 1800]
-	params.generative_model_batchnorm_to_input = False
+	params.generative_model_hidden_units = [600, 600]
+	params.generative_model_batchnorm_to_input = True
 	params.generative_model_batchnorm_before_activation = True
 	params.generative_model_batchnorm_enabled = True
-	params.generative_model_wscale = 0.01
-	params.generative_model_activation_function = "elu"
-	params.generative_model_optimizer = "AdaGrad"
-	params.generative_model_learning_rate = 0.0003
-	params.generative_model_momentum = 0.1
+	params.generative_model_wscale = math.sqrt(0.02)
+	params.generative_model_activation_function = "relu"
+	params.generative_model_optimizer = "Adam"
+	params.generative_model_learning_rate = 0.00002
+	params.generative_model_momentum = 0.5
 	params.generative_model_gradient_clipping = 10
-	params.generative_model_weight_decay = 0
+	params.generative_model_weight_decay = 0.0000025
 
 	params.gpu_enabled = True if args.gpu_enabled == 1 else False
 

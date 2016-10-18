@@ -3,17 +3,16 @@ import numpy as np
 sys.path.append(os.path.split(os.getcwd())[0])
 import visualizer
 from args import args
-from model import params, ddgm
+from model import params, dcdgm
 
-def main():
+def plot(filename="gen"):
 	try:
 		os.mkdir(args.plot_dir)
 	except:
 		pass
 
-	x_negative = ddgm.generate_x(100, test=True, as_numpy=True)
-	x_negative = np.clip((x_negative + 1.0) / 2.0, 0, 1)
-	visualizer.tile_x(x_negative, dir=args.plot_dir)
+	x_negative = dcdgm.generate_x(100, test=True, as_numpy=True)
+	visualizer.tile_rgb_images(x_negative.transpose(0, 2, 3, 1), dir=args.plot_dir, image_width=params.x_width, image_height=params.x_height, filename=filename)
 
 if __name__ == '__main__':
-	main()
+	plot()
