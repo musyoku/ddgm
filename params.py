@@ -21,9 +21,10 @@ class Params():
 		return dict
 
 	def dump(self):
-		print "params:"
+		print "params[{}]:".format(self.name)
 		for attr, value in self.__dict__.iteritems():
-			print "	{}: {}".format(attr, value)
+			if attr != "name":
+				print "	{}: {}".format(attr, value)
 
 	def check(self):
 		base = Params()

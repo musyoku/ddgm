@@ -3,69 +3,100 @@ import math
 import json, os, sys
 from args import args
 sys.path.append(os.path.split(os.getcwd())[0])
-from ddgm import DDGM, Params
+from params import Params
+from ddgm import DDGM, EnergyModelParams, GenerativeModelParams
 
 # load params.json
 try:
 	os.mkdir(args.model_dir)
 except:
 	pass
-filename = args.model_dir + "/params.json"
-if os.path.isfile(filename):
-	print "loading", filename
-	f = open(filename)
-	try:
-		dict = json.load(f)
-		params = Params(dict)
-	except:
-		raise Exception("could not load {}".format(filename))
 
-	params.gpu_enabled = True if args.gpu_enabled == 1 else False
+# data
+data = Params(name="data")
+data.image_width = 28
+data.image_height = data.image_width
+data.ndim_latent_code = 10
+
+# model parameters
+energy_model_params_filename = args.model_dir + "/params_energy_model.json"
+generative_model_params_filename = args.model_dir + "/params_generative_model.json"
+params_energy_model = None
+params_generative_model = None
+
+# specify energy model
+if os.path.isfile(energy_model_params_filename):
+	print "loading", energy_model_params_filename
+	with open(energy_model_params_filename, "w") as f:
+		try:
+			dict = json.load(f)
+			params_energy_model = EnergyModelParams(dict)
+		except:
+			raise Exception("could not load {}".format(energy_model_params_filename))
 else:
-	params = Params()
-	params.x_width = 28
-	params.x_height = params.x_width
-	params.ndim_x = params.x_width * params.x_width
-	params.ndim_z = 10
-	params.distribution_x = "sigmoid"
+	params = EnergyModelParams(name="energy_model")
+	params.ndim_input = data.image_width * data.image_height
+	params.ndim_output = data.ndim_latent_code
+	params.num_experts = 128
+	params.feature_extractor_hidden_units = [800, 800]
+	params.use_batchnorm = True
+	params.batchnorm_to_input = True
+	params.batchnorm_before_activation = False
+	params.use_dropout_at_layer = [True, False]
+	params.add_output_noise_at_layer = [True, True]
+	params.use_weightnorm = True
+	params.weight_init_std = 0.05
+	params.weight_initializer = "GlorotNormal"
+	params.nonlinearity = "elu"
+	params.optimizer = "Adam"
+	params.learning_rate = 0.0002
+	params.momentum = 0.5
+	params.gradient_clipping = 10
+	params.weight_decay = 0
 
-	params.energy_model_num_experts = 128
-	params.energy_model_feature_extractor_hidden_units = [800, 800]
-	params.energy_model_use_batchnorm = False
-	# params.energy_model_batchnorm_to_input = True
-	# params.energy_model_batchnorm_before_activation = False
-	params.energy_model_use_dropout = True
-	params.energy_model_use_weightnorm = True
-	params.energy_model_weight_init_std = math.sqrt(0.02)
-	params.energy_model_weight_initializer = "Normal"		# Normal or GlorotNormal
-	params.energy_model_nonlinearity = "elu"
-	params.energy_model_optimizer = "Adam"
-	params.energy_model_learning_rate = 0.0002
-	params.energy_model_momentum = 0.5
-	params.energy_model_gradient_clipping = 10
-	params.energy_model_weight_decay = 0
+	params_energy_model = params
+	params_energy_model.check()
+	with open(energy_model_params_filename, "w") as f:
+		json.dump(params_energy_model.to_dict(), f, indent=4)
 
-	params.generative_model_hidden_units = [500]
-	params.generative_model_use_dropout = False
-	params.generative_model_use_batchnorm = True
-	params.generative_model_batchnorm_to_input = True
-	params.generative_model_batchnorm_before_activation = True
-	params.generative_model_use_weightnorm = False
-	params.generative_model_weight_init_std = math.sqrt(0.02)
-	params.generative_model_weight_initializer = "Normal"		# Normal or GlorotNormal
-	params.generative_model_nonlinearity = "relu"
-	params.generative_model_optimizer = "Adam"
-	params.generative_model_learning_rate = 0.0002
-	params.generative_model_momentum = 0.5
-	params.generative_model_gradient_clipping = 10
-	params.generative_model_weight_decay = 0
+# specify generative model
+if os.path.isfile(generative_model_params_filename):
+	print "loading", generative_model_params_filename
+	with open(generative_model_params_filename, "w") as f:
+		try:
+			dict = json.load(f)
+			params_generative_model = GenerativeModelParams(dict)
+		except:
+			raise Exception("could not load {}".format(generative_model_params_filename))
+else:
+	params = GenerativeModelParams(name="generative_model")
+	params.ndim_input = data.ndim_latent_code
+	params.ndim_output = data.image_width * data.image_height
+	params.distribution_output = "sigmoid"
+	params.hidden_units = [800, 800]
+	params.use_dropout_at_layer = [False, False]
+	params.add_output_noise_at_layer = [False, False]
+	params.use_batchnorm = True
+	params.batchnorm_to_input = True
+	params.batchnorm_before_activation = True
+	params.use_weightnorm = False
+	params.weight_init_std = 1
+	params.weight_initializer = "GlorotNormal"
+	params.nonlinearity = "relu"
+	params.optimizer = "Adam"
+	params.learning_rate = 0.0002
+	params.momentum = 0.5
+	params.gradient_clipping = 10
+	params.weight_decay = 0
 
-	params.gpu_enabled = True if args.gpu_enabled == 1 else False
+	params_generative_model = params
+	params_generative_model.check()
+	with open(energy_model_params_filename, "w") as f:
+		json.dump(params_generative_model.to_dict(), f, indent=4)
 
-	params.check()
-	with open(filename, "w") as f:
-		json.dump(params.to_dict(), f, indent=4)
-
-params.dump()
-ddgm = DDGM(params)
+data.dump()
+params_energy_model.dump()
+params_generative_model.dump()
+ddgm = DDGM(params_energy_model, params_generative_model)
 ddgm.load(args.model_dir)
+params = ddgm.params

@@ -32,7 +32,7 @@ class EnergyModelParams(Params):
 		# True:  y = f(BN(W*x + b))
 		# False: y = f(W*BN(x) + b))
 		self.batchnorm_before_activation = False
-		
+
 		self.use_dropout_at_layer = [False, False]	# Do not apply dropout to output layer
 		self.add_output_noise_at_layer = [True, True]
 		self.use_weightnorm = True
@@ -98,7 +98,7 @@ class DDGM():
 	def __init__(self, params_energy_model, params_generative_model):
 		params_energy_model.check()
 		params_generative_model.check()
-		self.params = Params()
+		self.params = Params(name="DDGM")
 		self.params.energy_model = params_energy_model
 		self.params.generative_model = params_generative_model
 		self.create_network()
@@ -114,6 +114,22 @@ class DDGM():
 		else:
 			raise Exception()
 
+	def get_optimizer(self, name, lr, momentum):
+		if name.lower() == "adam":
+			return optimizers.Adam(alpha=lr, beta1=momentum)
+		if name.lower() == "adagrad":
+			return optimizers.AdaGrad(lr=lr)
+		if name.lower() == "adadelta":
+			return optimizers.AdaDelta(rho=momentum)
+		if name.lower() == "nesterov" or name.lower() == "nesterovag":
+			return optimizers.NesterovAG(lr=lr, momentum=momentum)
+		if name.lower() == "rmsprop":
+			return optimizers.RMSprop(lr=lr, alpha=momentum)
+		if name.lower() == "momentumsgd":
+			return optimizers.MomentumSGD(lr=lr, mommentum=mommentum)
+		if name.lower() == "sgd":
+			return optimizers.SGD(lr=lr)
+			
 	def get_linear_layer(self, use_weightnorm, initializer, init_std):
 		if use_weightnorm:
 			return WN.Linear(n_in, n_out, initialV=self.get_initializer(initializer, init_std))
@@ -161,22 +177,6 @@ class DDGM():
 			self.generative_model = DeepGenerativeModel(params, **attributes)
 		else:
 			raise Exception()
-
-	def get_optimizer(self, name, lr, momentum):
-		if name.lower() == "adam":
-			return optimizers.Adam(alpha=lr, beta1=momentum)
-		if name.lower() == "adagrad":
-			return optimizers.AdaGrad(lr=lr)
-		if name.lower() == "adadelta":
-			return optimizers.AdaDelta(rho=momentum)
-		if name.lower() == "nesterov" or name.lower() == "nesterovag":
-			return optimizers.NesterovAG(lr=lr, momentum=momentum)
-		if name.lower() == "rmsprop":
-			return optimizers.RMSprop(lr=lr, alpha=momentum)
-		if name.lower() == "momentumsgd":
-			return optimizers.MomentumSGD(lr=lr, mommentum=mommentum)
-		if name.lower() == "sgd":
-			return optimizers.SGD(lr=lr)
 
 	def setup_optimizers(self):
 		params = self.params
