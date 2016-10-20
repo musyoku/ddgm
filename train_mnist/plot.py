@@ -3,7 +3,7 @@ import numpy as np
 sys.path.append(os.path.split(os.getcwd())[0])
 import visualizer
 from args import args
-from model import params, dcdgm
+from model import params, ddgm
 
 def plot(filename="gen"):
 	try:
@@ -11,8 +11,8 @@ def plot(filename="gen"):
 	except:
 		pass
 
-	x_negative = dcdgm.generate_x(100, test=True, as_numpy=True)
-	visualizer.tile_rgb_images(x_negative.transpose(0, 2, 3, 1), dir=args.plot_dir, image_width=params.x_width, image_height=params.x_height, filename=filename)
+	x_negative = ddgm.generate_x(100, test=True, as_numpy=True)
+	visualizer.tile_binary_images(x_negative, dir=args.plot_dir, image_width=28, image_height=28, filename=filename)
 
 if __name__ == '__main__':
 	plot()

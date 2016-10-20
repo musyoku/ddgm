@@ -2,14 +2,15 @@
 import math
 import numpy as np
 import chainer, os, collections, six, math, random, time
-from chainer import cuda, Variable, optimizers, serializers, function, optimizer
+from chainer import cuda, Variable, optimizers, serializers, function, optimizer, initializers
 from chainer.utils import type_check
 from chainer import functions as F
 from chainer import links as L
 from softplus import softplus
+from params import Params
 import weightnorm as WN
 
-activations = {
+nonlinearities = {
 	"sigmoid": F.sigmoid, 
 	"tanh": F.tanh, 
 	"softplus": F.softplus, 
@@ -18,67 +19,53 @@ activations = {
 	"elu": F.elu
 }
 
-class Params():
+class EnergyModelParams(Params):
 	def __init__(self, dict=None):
-		self.ndim_x = 28 * 28
-		self.ndim_z = 10
-		self.apply_dropout = False
-		self.distribution_x = "universal"	# universal or sigmoid or tanh
+		self.ndim_input = 28 * 28
+		self.ndim_output = 10
 
-		self.energy_model_num_experts = 128
-		self.energy_model_feature_extractor_hidden_units = [500]
-		self.energy_model_batchnorm_to_input = True
+		self.num_experts = 128
+		self.feature_extractor_hidden_units = [800, 800]
+		self.use_batchnorm = True
+		self.batchnorm_to_input = True
+
 		# True:  y = f(BN(W*x + b))
 		# False: y = f(W*BN(x) + b))
-		self.energy_model_batchnorm_before_activation = False
-		self.energy_model_batchnorm_enabled = True
-		self.energy_model_wscale = 1
-		self.energy_model_activation_function = "elu"
-		self.energy_model_optimizer = "Adam"
-		self.energy_model_learning_rate = 0.001
-		self.energy_model_momentum = 0.9
-		self.energy_model_gradient_clipping = 10
-		self.energy_model_weight_decay = 0
+		self.batchnorm_before_activation = False
+		
+		self.use_dropout_at_layer = [False, False]	# Do not apply dropout to output layer
+		self.add_output_noise_at_layer = [True, True]
+		self.use_weightnorm = True
+		self.weight_init_std = 1
+		self.weight_initializer = "Normal"		# Normal or GlorotNormal or HeNormal
+		self.nonlinearity = "elu"
+		self.optimizer = "Adam"
+		self.learning_rate = 0.001
+		self.momentum = 0.5
+		self.gradient_clipping = 10
+		self.weight_decay = 0
 
-		self.generative_model_hidden_units = [500]
-		self.generative_model_batchnorm_to_input = False
-		self.generative_model_batchnorm_before_activation = False
-		self.generative_model_batchnorm_enabled = True
-		self.generative_model_wscale = 1
-		self.generative_model_activation_function = "elu"
-		self.generative_model_optimizer = "Adam"
-		self.generative_model_learning_rate = 0.001
-		self.generative_model_momentum = 0.9
-		self.generative_model_gradient_clipping = 10
-		self.generative_model_weight_decay = 0
+class GenerativeModelParams(Params):
+	def __init__(self, dict=None):
+		self.ndim_input = 10
+		self.ndim_output = 28 * 28
+		self.distribution_output = "universal"	# universal or sigmoid or tanh
 
-		self.gpu_enabled = True
-
-		if dict:
-			self.from_dict(dict)
-			self.check()
-
-	def from_dict(self, dict):
-		for attr, value in dict.iteritems():
-			if hasattr(self, attr):
-				setattr(self, attr, value)
-
-	def to_dict(self):
-		dict = {}
-		for attr, value in self.__dict__.iteritems():
-			dict[attr] = value
-		return dict
-
-	def dump(self):
-		print "params:"
-		for attr, value in self.__dict__.iteritems():
-			print "	{}: {}".format(attr, value)
-
-	def check(self):
-		base = Params()
-		for attr, value in self.__dict__.iteritems():
-			if not hasattr(base, attr):
-				raise Exception("invalid parameter '{}'".format(attr))
+		self.hidden_units = [800, 800]
+		self.use_dropout_at_layer = [False, False]	# Do not apply dropout to output layer
+		self.add_output_noise_at_layer = [False, False]
+		self.use_batchnorm = True
+		self.batchnorm_to_input = False
+		self.batchnorm_before_activation = False
+		self.use_weightnorm = False
+		self.weight_init_std = 1
+		self.weight_initializer = "Normal"		# Normal or GlorotNormal or HeNormal
+		self.nonlinearity = "relu"
+		self.optimizer = "Adam"
+		self.learning_rate = 0.001
+		self.momentum = 0.5
+		self.gradient_clipping = 10
+		self.weight_decay = 0
 
 def sum_sqnorm(arr):
 	sq_sum = collections.defaultdict(float)
@@ -108,49 +95,70 @@ class GradientClipping(object):
 
 class DDGM():
 
-	def __init__(self, params):
-		params.check()
-		self.params = params
+	def __init__(self, params_energy_model, params_generative_model):
+		params_energy_model.check()
+		params_generative_model.check()
+		self.params = Params()
+		self.params.energy_model = params_energy_model
+		self.params.generative_model = params_generative_model
 		self.create_network()
 		self.setup_optimizers()
 
+	def get_initializer(self, name, std):
+		if name.lower() == "normal":
+			initialW = initializers.Normal(std)
+		elif name.lower() == "glorotnormal":
+			initialW = initializers.GlorotNormal(std)
+		elif name.lower() == "henormal":
+			initialW = initializers.HeNormal(std)
+		else:
+			raise Exception()
+
+	def get_linear_layer(self, use_weightnorm, initializer, init_std):
+		if use_weightnorm:
+			return WN.Linear(n_in, n_out, initialV=self.get_initializer(initializer, init_std))
+		return L.Linear(n_in, n_out, initialW=self.get_initializer(initializer, init_std))
+
 	def create_network(self):
-		params = self.params
+		self.create_energy_model()
+		self.create_generative_model()
 
-		# deep energy model
+	def create_energy_model(self):
+		params = self.params.energy_model
+
 		attributes = {}
-		units = [(params.ndim_x, params.energy_model_feature_extractor_hidden_units[0])]
-		units += zip(params.energy_model_feature_extractor_hidden_units[:-1], params.energy_model_feature_extractor_hidden_units[1:])
+		units = [(params.ndim_input, params.feature_extractor_hidden_units[0])]
+		units += zip(params.feature_extractor_hidden_units[:-1], params.feature_extractor_hidden_units[1:])
 		for i, (n_in, n_out) in enumerate(units):
-			attributes["layer_%i" % i] = WN.Linear(n_in, n_out, wscale=params.energy_model_wscale)
-			if params.energy_model_batchnorm_before_activation:
-				attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out)
-			else:
-				attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
+			attributes["layer_%i" % i] = self.get_linear_layer(params.use_weightnorm, params.weight_initializer, params.weight_init_std)
+			if params.use_batchnorm:
+				attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out if params.batchnorm_before_activation else n_in)
 
-		attributes["b"] = WN.Linear(params.ndim_x, 1, wscale=params.energy_model_wscale, nobias=True)
-		attributes["feature_detector"] = WN.Linear(params.energy_model_feature_extractor_hidden_units[-1], params.energy_model_num_experts, wscale=params.energy_model_wscale)
+		attributes["b"] = L.Linear(params.ndim_input, 1, initialW=self.get_initializer(params.weight_initializer, params.weight_init_std), nobias=True)
+		attributes["feature_detector"] = L.Linear(params.feature_extractor_hidden_units[-1], params.num_experts, initialW=self.get_initializer(params.weight_initializer, params.weight_init_std))
 		
-		self.energy_model = DeepEnergyModel(params, n_layers=len(units), **attributes)
+		params.n_layers = len(units)
+		self.energy_model = DeepEnergyModel(params, **attributes)
 
-		# deep generative model
+	def create_generative_model(self):
+		params = self.params.generative_model
+
 		attributes = {}
-		units = [(params.ndim_z, params.generative_model_hidden_units[0])]
-		units += zip(params.generative_model_hidden_units[:-1], params.generative_model_hidden_units[1:])
-		units += [(params.generative_model_hidden_units[-1], params.ndim_x)]
+		units = [(params.ndim_input, params.hidden_units[0])]
+		units += zip(params.hidden_units[:-1], params.hidden_units[1:])
+		units += [(params.hidden_units[-1], params.ndim_output)]
 		for i, (n_in, n_out) in enumerate(units):
-			attributes["layer_%i" % i] = WN.Linear(n_in, n_out, wscale=params.generative_model_wscale)
-			if params.generative_model_batchnorm_before_activation:
-				attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out)
-			else:
-				attributes["batchnorm_%i" % i] = L.BatchNormalization(n_in)
+			attributes["layer_%i" % i] = self.get_linear_layer(params.use_weightnorm, params.weight_initializer, params.weight_init_std)
+			if params.use_batchnorm:
+				attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out if params.batchnorm_before_activation else n_in)
 
-		if params.distribution_x == "sigmoid":
-			self.generative_model = SigmoidDeepGenerativeModel(params, n_layers=len(units), **attributes)
-		elif params.distribution_x == "tanh":
-			self.generative_model = TanhDeepGenerativeModel(params, n_layers=len(units), **attributes)
-		elif params.distribution_x == "universal":
-			self.generative_model = DeepGenerativeModel(params, n_layers=len(units), **attributes)
+		params.n_layers = len(units)
+		if params.distribution_output == "sigmoid":
+			self.generative_model = SigmoidDeepGenerativeModel(params, **attributes)
+		elif params.distribution_output == "tanh":
+			self.generative_model = TanhDeepGenerativeModel(params, **attributes)
+		elif params.distribution_output == "universal":
+			self.generative_model = DeepGenerativeModel(params, **attributes)
 		else:
 			raise Exception()
 
@@ -173,20 +181,20 @@ class DDGM():
 	def setup_optimizers(self):
 		params = self.params
 		
-		opt = self.get_optimizer(params.energy_model_optimizer, params.energy_model_learning_rate, params.energy_model_momentum)
+		opt = self.get_optimizer(params.optimizer, params.learning_rate, params.momentum)
 		opt.setup(self.energy_model)
-		if params.energy_model_weight_decay > 0:
-			opt.add_hook(optimizer.WeightDecay(params.energy_model_weight_decay))
-		if params.energy_model_gradient_clipping > 0:
-			opt.add_hook(GradientClipping(params.energy_model_gradient_clipping))
+		if params.weight_decay > 0:
+			opt.add_hook(optimizer.WeightDecay(params.weight_decay))
+		if params.gradient_clipping > 0:
+			opt.add_hook(GradientClipping(params.gradient_clipping))
 		self.optimizer_energy_model = opt
 		
-		opt = self.get_optimizer(params.generative_model_optimizer, params.generative_model_learning_rate, params.generative_model_momentum)
+		opt = self.get_optimizer(params.optimizer, params.learning_rate, params.momentum)
 		opt.setup(self.generative_model)
-		if params.generative_model_weight_decay > 0:
-			opt.add_hook(optimizer.WeightDecay(params.generative_model_weight_decay))
-		if params.generative_model_gradient_clipping > 0:
-			opt.add_hook(GradientClipping(params.generative_model_gradient_clipping))
+		if params.weight_decay > 0:
+			opt.add_hook(optimizer.WeightDecay(params.weight_decay))
+		if params.gradient_clipping > 0:
+			opt.add_hook(GradientClipping(params.gradient_clipping))
 		self.optimizer_generative_model = opt
 
 	def update_laerning_rate(self, lr):
@@ -306,15 +314,16 @@ class DDGM():
 		print "model saved."
 
 class DeepGenerativeModel(chainer.Chain):
-	def __init__(self, params, n_layers, **layers):
+	def __init__(self, params, **layers):
 		super(DeepGenerativeModel, self).__init__(**layers)
 
-		self.n_layers = n_layers
-		self.activation_function = params.generative_model_activation_function
-		self.apply_dropout = params.apply_dropout
-		self.batchnorm_enabled = params.generative_model_batchnorm_enabled
-		self.batchnorm_to_input = params.generative_model_batchnorm_to_input
-		self.batchnorm_before_activation = params.generative_model_batchnorm_before_activation
+		self.n_layers = params.n_layers
+		self.nonlinearity = params.nonlinearity
+		self.use_dropout_at_layer = params.use_dropout_at_layer
+		self.add_noise_at_layer = params.add_output_noise_at_layer
+		self.use_batchnorm = params.use_batchnorm
+		self.batchnorm_to_input = params.batchnorm_to_input
+		self.batchnorm_before_activation = params.batchnorm_before_activation
 
 		if params.gpu_enabled:
 			self.to_gpu()
@@ -326,7 +335,7 @@ class DeepGenerativeModel(chainer.Chain):
 	def compute_entropy(self):
 		entropy = 0
 
-		if self.batchnorm_enabled == False:
+		if self.use_batchnorm == False:
 			return entropy
 
 		for i in range(self.n_layers):
@@ -336,7 +345,7 @@ class DeepGenerativeModel(chainer.Chain):
 		return entropy
 
 	def compute_output(self, z):
-		f = activations[self.activation_function]
+		f = nonlinearities[self.nonlinearity]
 		chain = [z]
 
 		for i in range(self.n_layers):
@@ -345,7 +354,7 @@ class DeepGenerativeModel(chainer.Chain):
 			if self.batchnorm_before_activation:
 				u = getattr(self, "layer_%i" % i)(u)
 
-			if self.batchnorm_enabled:
+			if self.use_batchnorm:
 				bn = getattr(self, "batchnorm_%d" % i)
 				if i == 0:
 					if self.batchnorm_to_input == True:
@@ -363,7 +372,7 @@ class DeepGenerativeModel(chainer.Chain):
 				output = u
 			else:
 				output = f(u)
-				if self.apply_dropout:
+				if self.use_dropout_at_layer[i]:
 					output = F.dropout(output, train=not self.test)
 
 			chain.append(output)
@@ -385,15 +394,16 @@ class TanhDeepGenerativeModel(DeepGenerativeModel):
 		return F.tanh(self.compute_output(z))
 
 class DeepEnergyModel(chainer.Chain):
-	def __init__(self, params, n_layers, **layers):
+	def __init__(self, params, **layers):
 		super(DeepEnergyModel, self).__init__(**layers)
 
-		self.n_layers = n_layers
-		self.activation_function = params.energy_model_activation_function
-		self.apply_dropout = params.apply_dropout
-		self.batchnorm_enabled = params.energy_model_batchnorm_enabled
-		self.batchnorm_to_input = params.energy_model_batchnorm_to_input
-		self.batchnorm_before_activation = params.energy_model_batchnorm_before_activation
+		self.n_layers = params.n_layers
+		self.nonlinearity = params.nonlinearity
+		self.use_dropout_at_layer = params.use_dropout_at_layer
+		self.add_noise_at_layer = params.add_output_noise_at_layer
+		self.use_batchnorm = params.use_batchnorm
+		self.batchnorm_to_input = params.batchnorm_to_input
+		self.batchnorm_before_activation = params.batchnorm_before_activation
 
 		if params.gpu_enabled:
 			self.to_gpu()
@@ -403,7 +413,7 @@ class DeepEnergyModel(chainer.Chain):
 		return np if self._cpu else cuda.cupy
 
 	def extract_features(self, x):
-		f = activations[self.activation_function]
+		f = nonlinearities[self.nonlinearity]
 		chain = [x]
 
 		for i in range(self.n_layers):
@@ -412,7 +422,7 @@ class DeepEnergyModel(chainer.Chain):
 			if self.batchnorm_before_activation:
 				u = getattr(self, "layer_%i" % i)(u)
 
-			if self.batchnorm_enabled:
+			if self.use_batchnorm:
 				bn = getattr(self, "batchnorm_%d" % i)
 				if i == 0:
 					if self.batchnorm_to_input == True:
@@ -427,7 +437,7 @@ class DeepEnergyModel(chainer.Chain):
 				output = F.tanh(u)
 			else:
 				output = f(u)
-				if self.apply_dropout:
+				if self.use_dropout_at_layer[i]:
 					output = F.dropout(output, train=not self.test)
 
 			chain.append(output)

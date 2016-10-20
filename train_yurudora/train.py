@@ -5,40 +5,38 @@ from chainer import functions as F
 sys.path.append(os.path.split(os.getcwd())[0])
 from model import params, dcdgm
 from args import args
-from dataset import load_rgb_images
-from plot import plot
+from dataset import binarize_data, load_rgba_images
+import dataset
 
 def sample_from_data(images, batchsize):
 	example = images[0]
 	height = example.shape[1]
 	width = example.shape[2]
-	x_batch = np.empty((batchsize, 3, height, width), dtype=np.float32)
+	x_batch = np.full((batchsize, 3, height, width), -1,  dtype=np.float32)
 	indices = np.random.choice(np.arange(len(images), dtype=np.int32), size=batchsize, replace=True)
 	for j in range(batchsize):
 		data_index = indices[j]
-		x_batch[j] = images[data_index]
+		image_rgba = images[data_index]
+		mask = np.repeat(image_rgba[3].reshape((-1, height, width)), 3, axis=0)
+		image_rgb = image_rgba[:3] * mask
+		x_batch[j] *= 1 - mask
+		x_batch[j] += image_rgb
 	return x_batch
 
 def main():
 	# load MNIST images
-	images = load_rgb_images(args.image_dir)
+	images = load_rgba_images(args.image_dir)
 	
 	# settings
 	max_epoch = 1000
-	n_trains_per_epoch = 100
+	n_trains_per_epoch = 500
 	batchsize_positive = 128
 	batchsize_negative = 128
-	plot_interval = 30
 
 	# seed
 	np.random.seed(args.seed)
 	if params.gpu_enabled:
 	    cuda.cupy.random.seed(args.seed)
-
-	# init weightnorm layers
-	x_positive = sample_from_data(images, batchsize_positive * 10)
-	dcdgm.compute_energy(x_positive)
-	
 
 	total_time = 0
 	for epoch in xrange(1, max_epoch):
@@ -82,12 +80,9 @@ def main():
 		epoch_time = time.time() - epoch_time
 		total_time += epoch_time
 		sys.stdout.write("\r")
-		print "epoch: {} energy: x+ {:.3f} x- {:.3f} kld: {:.3f} time: {} min total: {} min".format(epoch, sum_energy_positive / n_trains_per_epoch, sum_energy_negative / n_trains_per_epoch, sum_kld / n_trains_per_epoch, int(epoch_time / 60), int(total_time / 60))
+		print "epoch: {} energy: x+ {:.3f} x- {:.3f} kld: {:.3f} time: {} min total: {} min".format(epoch + 1, sum_energy_positive / n_trains_per_epoch, sum_energy_negative / n_trains_per_epoch, sum_kld / n_trains_per_epoch, int(epoch_time / 60), int(total_time / 60))
 		sys.stdout.flush()
 		dcdgm.save(args.model_dir)
-
-		if epoch % plot_interval == 0 or epoch == 1:
-			plot(filename="epoch_{}_time_{}min".format(epoch, int(total_time / 60)))
 
 if __name__ == '__main__':
 	main()

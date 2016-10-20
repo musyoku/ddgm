@@ -6,8 +6,9 @@ from chainer import cuda, Variable, optimizers, serializers, function, optimizer
 from chainer.utils import type_check
 from chainer import functions as F
 from chainer import links as L
-from ddgm import DDGM, activations, DeepGenerativeModel, DeepEnergyModel
+from ddgm import DDGM, nonlinearities, DeepGenerativeModel, DeepEnergyModel
 from softplus import softplus
+import weightnorm as WN
 
 class Params():
 	def __init__(self, dict=None):
@@ -15,18 +16,19 @@ class Params():
 		self.x_height = self.x_width
 		self.x_channels = 3
 		self.ndim_z = 10
-		self.apply_dropout = False
 		self.distribution_x = "universal"	# universal or sigmoid or tanh
 
 		self.energy_model_num_experts = 128
 		self.energy_model_feature_extractor_hidden_channels = [64, 128, 256, 512]
 		self.energy_model_feature_extractor_stride = 2
 		self.energy_model_feature_extractor_ksize = 4
+		self.energy_model_use_dropout = False
+		self.energy_model_use_batchnorm = False
 		self.energy_model_batchnorm_to_input = False
 		self.energy_model_batchnorm_before_activation = False
-		self.energy_model_batchnorm_enabled = False
+		self.energy_model_use_weightnorm = True
 		self.energy_model_wscale = 1
-		self.energy_model_activation_function = "elu"
+		self.energy_model_nonlinearity = "elu"
 		self.energy_model_optimizer = "Adam"
 		self.energy_model_learning_rate = 0.001
 		self.energy_model_momentum = 0.9
@@ -36,11 +38,13 @@ class Params():
 		self.generative_model_hidden_channels = [512, 256, 128, 64]
 		self.generative_model_stride = 2
 		self.generative_model_ksize = 4
+		self.generative_model_use_dropout = False
+		self.generative_model_use_batchnorm = True
 		self.generative_model_batchnorm_to_input = False
 		self.generative_model_batchnorm_before_activation = True
-		self.generative_model_batchnorm_enabled = True
+		self.generative_model_use_weightnorm = False
 		self.generative_model_wscale = 1
-		self.generative_model_activation_function = "elu"
+		self.generative_model_nonlinearity = "elu"
 		self.generative_model_optimizer = "Adam"
 		self.generative_model_learning_rate = 0.001
 		self.generative_model_momentum = 0.9
@@ -146,7 +150,10 @@ class DCDGM(DDGM):
 		for i, (n_in, n_out) in enumerate(channels):
 			pad = get_conv_padding(input_width, kernel_width, stride)
 			initialW = np.random.normal(loc=0, scale= params.energy_model_wscale, size=(n_out, n_in, kernel_width, kernel_width))
-			attributes["layer_%i" % i] = L.Convolution2D(n_in, n_out, kernel_width, stride=stride, pad=pad, initialW=initialW)
+			if params.energy_model_use_weightnorm:
+				attributes["layer_%i" % i] = WN.Convolution2D(n_in, n_out, kernel_width, stride=stride, pad=pad, initialV=initialW)
+			else:
+				attributes["layer_%i" % i] = L.Convolution2D(n_in, n_out, kernel_width, stride=stride, pad=pad, initialW=initialW)
 			attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out if params.energy_model_batchnorm_before_activation else n_in)
 			output_width = (input_width + pad * 2 - kernel_width) // stride + 1
 			# check
@@ -200,7 +207,10 @@ class DCDGM(DDGM):
 		for i, (n_in, n_out) in enumerate(channels):
 			pad = paddings[i]
 			initialW = np.random.normal(loc=0, scale= params.generative_model_wscale, size=(n_in, n_out, kernel_width, kernel_width))
-			attributes["layer_%i" % i] = L.Deconvolution2D(n_in, n_out, kernel_width, stride=stride, pad=pad, initialW=initialW)
+			if params.generative_model_use_weightnorm:
+				attributes["layer_%i" % i] = WN.Deconvolution2D(n_in, n_out, kernel_width, stride=stride, pad=pad, initialV=initialW)
+			else:
+				attributes["layer_%i" % i] = L.Deconvolution2D(n_in, n_out, kernel_width, stride=stride, pad=pad, initialW=initialW)
 			attributes["batchnorm_%i" % i] = L.BatchNormalization(n_out if params.generative_model_batchnorm_before_activation else n_in)
 
 		# projecton layer
@@ -311,8 +321,8 @@ class DCDGM(DDGM):
 class DeepConvolutionalGenerativeModel(DeepGenerativeModel):
 
 	def project_z(self, z):
-		f = activations[self.activation_function]
-		if self.batchnorm_enabled == False:
+		f = nonlinearities[self.nonlinearity]
+		if self.use_batchnorm == False:
 			projection = self.noize_projector(z)
 		elif self.batchnorm_to_input == False:
 			projection = self.noize_projector(z)
@@ -327,7 +337,7 @@ class DeepConvolutionalGenerativeModel(DeepGenerativeModel):
 
 
 	def compute_output(self, z):
-		f = activations[self.activation_function]
+		f = nonlinearities[self.nonlinearity]
 		chain = [z]
 
 		for i in range(self.n_layers):
@@ -336,7 +346,7 @@ class DeepConvolutionalGenerativeModel(DeepGenerativeModel):
 			if self.batchnorm_before_activation:
 				u = getattr(self, "layer_%i" % i)(u)
 
-			if self.batchnorm_enabled:
+			if self.use_batchnorm:
 				bn = getattr(self, "batchnorm_%d" % i)
 				if i == self.n_layers - 1:
 					if self.batchnorm_before_activation == False:
@@ -351,7 +361,7 @@ class DeepConvolutionalGenerativeModel(DeepGenerativeModel):
 				output = u
 			else:
 				output = f(u)
-				if self.apply_dropout:
+				if self.use_dropout:
 					output = F.dropout(output, train=not self.test)
 
 			chain.append(output)
@@ -375,7 +385,7 @@ class TanhDeepConvolutionalGenerativeModel(DeepConvolutionalGenerativeModel):
 class DeepConvolutionalEnergyModel(DeepEnergyModel):
 
 	def project_features(self, features):
-		if self.batchnorm_enabled == False:
+		if self.use_batchnorm == False:
 			return F.tanh(self.feature_projector(features))
 		if self.batchnorm_before_activation:
 			return F.tanh(self.batchnorm_projector(self.feature_projector(features), test=self.test))

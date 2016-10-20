@@ -6,7 +6,7 @@ sys.path.append(os.path.split(os.getcwd())[0])
 from model import params, ddgm
 from args import args
 from dataset import binarize_data, load_binary_images
-import dataset
+from plot import plot
 
 def sample_from_data(images, batchsize):
 	example = images[0]
@@ -37,8 +37,9 @@ def main():
 	if params.gpu_enabled:
 		cuda.cupy.random.seed(args.seed)
 
-	# init weightnorm layers
-	x_positive = sample_from_data(images, batchsize_positive)
+	# init weightnorm layers of the energy model
+	print "initializing weight normalization layers..."
+	x_positive = sample_from_data(images, len(images) // 10)
 	ddgm.compute_energy(x_positive)
 
 	# training
@@ -82,11 +83,11 @@ def main():
 		epoch_time = time.time() - epoch_time
 		total_time += epoch_time
 		sys.stdout.write("\r")
-		print "epoch: {} energy: x+ {:.3f} x- {:.3f} kld: {:.3f} time: {} min total: {} min".format(epoch + 1, sum_energy_positive / n_trains_per_epoch, sum_energy_negative / n_trains_per_epoch, sum_kld / n_trains_per_epoch, int(epoch_time / 60), int(total_time / 60))
+		print "epoch: {} energy: x+ {:.3f} x- {:.3f} kld: {:.3f} time: {} min total: {} min".format(epoch, sum_energy_positive / n_trains_per_epoch, sum_energy_negative / n_trains_per_epoch, sum_kld / n_trains_per_epoch, int(epoch_time / 60), int(total_time / 60))
 		sys.stdout.flush()
 		ddgm.save(args.model_dir)
 
-		if epoch % plot_interval == 0:
+		if epoch % plot_interval == 0 or epoch == 1:
 			plot(filename="epoch_{}_time_{}min".format(epoch, int(total_time / 60)))
 
 if __name__ == '__main__':

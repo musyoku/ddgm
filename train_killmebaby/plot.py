@@ -12,7 +12,7 @@ def plot(filename="gen"):
 		pass
 
 	x_negative = dcdgm.generate_x(100, test=True, as_numpy=True)
-	x_negative = (x_negative + 1) / 2
+	# x_negative = (x_negative + 1) / 2
 	visualizer.tile_rgb_images(x_negative.transpose(0, 2, 3, 1), dir=args.plot_dir, image_width=params.x_width, image_height=params.x_height, filename=filename)
 
 if __name__ == '__main__':
