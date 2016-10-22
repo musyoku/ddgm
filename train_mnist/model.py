@@ -7,7 +7,7 @@ from params import Params
 from ddgm import DDGM, EnergyModelParams, GenerativeModelParams, DeepEnergyModel, DeepGenerativeModel
 from sequential import Sequential
 from sequential.link import Linear, BatchNormalization
-from sequential.function import Activation, dropout, gaussian_noise, tanh
+from sequential.function import Activation, dropout, gaussian_noise, tanh, sigmoid
 
 # load params.json
 try:
@@ -25,17 +25,10 @@ energy_model_filename = args.model_dir + "/energy_model.json"
 
 if os.path.isfile(energy_model_filename):
 	print "loading", energy_model_filename
-	with open(energy_model_filename, "w") as f:
+	with open(energy_model_filename, "r") as f:
 		try:
 			params = json.load(f)
-			config = params["config"]
-			feature_extractor = Sequential()
-			feature_extractor.from_json(params["feature_extractor"])
-			experts = Sequential()
-			experts.from_json(params["experts"])
-			b = Sequential()
-			b.from_json(params["b"])
-		except:
+		except Exception as e:
 			raise Exception("could not load {}".format(energy_model_filename))
 else:
 	config = EnergyModelParams()
@@ -83,7 +76,7 @@ else:
 	}
 
 	with open(energy_model_filename, "w") as f:
-		json.dump(params, f, indent=4, sort_keys=True, indent=4, separators=(',', ': '))
+		json.dump(params, f, indent=4, sort_keys=True, separators=(',', ': '))
 
 params_energy_model = params
 
@@ -91,34 +84,31 @@ params_energy_model = params
 generative_model_filename = args.model_dir + "/generative_model.json"
 if os.path.isfile(generative_model_filename):
 	print "loading", generative_model_filename
-	with open(generative_model_filename, "w") as f:
+	with open(generative_model_filename, "r") as f:
 		try:
 			params = json.load(f)
-			config = params["config"]
-			model = Sequential()
-			model.from_json(params["model"])
 		except:
 			raise Exception("could not load {}".format(generative_model_filename))
 else:
-	params = GenerativeModelParams()
-	params.ndim_input = data.ndim_latent_code
-	params.ndim_output = data.image_width * data.image_height
-	params.distribution_output = "sigmoid"
-	params.hidden_units = [800, 800]
-	params.use_dropout_at_layer = [False, False]
-	params.add_output_noise_at_layer = [False, False]
-	params.use_batchnorm = True
-	params.batchnorm_to_input = True
-	params.batchnorm_before_activation = True
-	params.use_weightnorm = False
-	params.weight_init_std = 1
-	params.weight_initializer = "GlorotNormal"
-	params.nonlinearity = "relu"
-	params.optimizer = "Adam"
-	params.learning_rate = 0.0002
-	params.momentum = 0.5
-	params.gradient_clipping = 10
-	params.weight_decay = 0
+	config = GenerativeModelParams()
+	config.ndim_input = ndim_latent_code
+	config.ndim_output = image_width * image_height
+	config.distribution_output = "sigmoid"
+	config.hidden_units = [800, 800]
+	config.use_dropout_at_layer = [False, False]
+	config.add_output_noise_at_layer = [False, False]
+	config.use_batchnorm = True
+	config.batchnorm_to_input = True
+	config.batchnorm_before_activation = True
+	config.use_weightnorm = False
+	config.weight_init_std = 1
+	config.weight_initializer = "GlorotNormal"
+	config.nonlinearity = "relu"
+	config.optimizer = "Adam"
+	config.learning_rate = 0.0002
+	config.momentum = 0.5
+	config.gradient_clipping = 10
+	config.weight_decay = 0
 
 	# model
 	model = Sequential(weight_initializer=config.weight_initializer, weight_init_std=config.weight_init_std)
@@ -142,8 +132,8 @@ else:
 		"model": model.to_dict(),
 	}
 
-	with open(energy_model_filename, "w") as f:
-		json.dump(params, f, indent=4, sort_keys=True, indent=4, separators=(',', ': '))
+	with open(generative_model_filename, "w") as f:
+		json.dump(params, f, indent=4, sort_keys=True, separators=(',', ': '))
 
 params_generative_model = params
 
