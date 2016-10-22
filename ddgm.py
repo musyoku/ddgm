@@ -21,7 +21,7 @@ nonlinearities = {
 }
 
 class EnergyModelParams(Params):
-	def __init__(self, dict=None):
+	def __init__(self):
 		self.ndim_input = 28 * 28
 		self.ndim_output = 10
 		self.num_experts = 128
@@ -35,7 +35,7 @@ class EnergyModelParams(Params):
 		self.weight_decay = 0
 
 class GenerativeModelParams(Params):
-	def __init__(self, dict=None):
+	def __init__(self):
 		self.ndim_input = 10
 		self.ndim_output = 28 * 28
 		self.distribution_output = "universal"	# universal or sigmoid or tanh
@@ -77,17 +77,17 @@ class GradientClipping(object):
 class Chain(chainer.Chain):
 
 	def add_sequence(self, sequence, name_prefix="layer"):
-		if isinstance(seqence, sequential.Sequential) == False:
+		if isinstance(sequence, sequential.Sequential) == False:
 			raise Exception()
 		for i, link in enumerate(sequence.links):
-            self.add_link("{}_{}".format(name_prefix, i), link)
+			if isinstance(link, chainer.link.Link):
+				self.add_link("{}_{}".format(name_prefix, i), link)
 
 class DDGM():
 
 	def __init__(self, params_energy_model, params_generative_model):
-		self.params = object()
-		self.params.energy_model = params_energy_model
-		self.params.generative_model = params_generative_model
+		self.params_energy_model = params_energy_model
+		self.params_generative_model = params_generative_model
 		self.build_network()
 		self.setup_optimizers()
 		self._gpu = False
@@ -113,43 +113,44 @@ class DDGM():
 		self.build_generative_model()
 
 	def build_energy_model(self):
-		params = self.params.energy_model
+		params = self.params_energy_model
 		self.energy_model = DeepEnergyModel()
-		self.energy_model.add_feature_extractor(params["feature_extractor"])
-		self.energy_model.add_experts(params["experts"])
-		self.energy_model.add_b(params["b"])
+		self.energy_model.add_feature_extractor(sequential.from_dict(params["feature_extractor"]))
+		self.energy_model.add_experts(sequential.from_dict(params["experts"]))
+		self.energy_model.add_b(sequential.from_dict(params["b"]))
 
 	def build_generative_model(self):
-		params = self.params.generative_model
+		params = self.params_generative_model
+		config = params["config"]
 
-		if params.distribution_output == "sigmoid":
+		if config["distribution_output"] == "sigmoid":
 			self.generative_model = SigmoidDeepGenerativeModel()
-		elif params.distribution_output == "tanh":
+		elif config["distribution_output"] == "tanh":
 			self.generative_model = TanhDeepGenerativeModel()
-		elif params.distribution_output == "universal":
+		elif config["distribution_output"] == "universal":
 			self.generative_model = DeepGenerativeModel()
 		else:
 			raise Exception()
 
-		self.generative_model.add_model(params["model"])
+		self.generative_model.add_model(sequential.from_dict(params["model"]))
 
 	def setup_optimizers(self):
-		params = self.params.enermo
-		
-		opt = self.get_optimizer(params["optimizer"], params["learning_rate"], params["momentum"])
+		config = self.params_energy_model["config"]
+		opt = self.get_optimizer(config["optimizer"], config["learning_rate"], config["momentum"])
 		opt.setup(self.energy_model)
-		if params["weight_decay"] > 0:
-			opt.add_hook(optimizer.WeightDecay(params["weight_decay"]))
-		if params["gradient_clipping"] > 0:
-			opt.add_hook(GradientClipping(params["gradient_clipping"]))
+		if config["weight_decay"] > 0:
+			opt.add_hook(optimizer.WeightDecay(config["weight_decay"]))
+		if config["gradient_clipping"] > 0:
+			opt.add_hook(GradientClipping(config["gradient_clipping"]))
 		self.optimizer_energy_model = opt
 		
-		opt = self.get_optimizer(params["optimizer"], params["learning_rate"], params["momentum"])
+		config = self.params_generative_model["config"]
+		opt = self.get_optimizer(config["optimizer"], config["learning_rate"], config["momentum"])
 		opt.setup(self.generative_model)
-		if params["weight_decay"] > 0:
-			opt.add_hook(optimizer.WeightDecay(params["weight_decay"]))
-		if params["gradient_clipping"] > 0:
-			opt.add_hook(GradientClipping(params["gradient_clipping"]))
+		if config["weight_decay"] > 0:
+			opt.add_hook(optimizer.WeightDecay(config["weight_decay"]))
+		if config["gradient_clipping"] > 0:
+			opt.add_hook(GradientClipping(config["gradient_clipping"]))
 		self.optimizer_generative_model = opt
 
 	def update_laerning_rate(self, lr):
