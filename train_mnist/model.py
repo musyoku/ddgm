@@ -35,7 +35,7 @@ else:
 	config.ndim_input = image_width * image_height
 	config.num_experts = 128
 	config.weight_init_std = 0.05
-	config.weight_initializer = "GlorotNormal"
+	config.weight_initializer = "Normal"
 	config.use_weightnorm = False
 	config.nonlinearity = "elu"
 	config.optimizer = "Adam"
@@ -46,16 +46,19 @@ else:
 
 	# feature extractor
 	feature_extractor = Sequential(weight_initializer=config.weight_initializer, weight_init_std=config.weight_init_std)
-	feature_extractor.add(Linear(config.ndim_input, 800, use_weightnorm=config.use_weightnorm))
-	feature_extractor.add(BatchNormalization(800))
+	feature_extractor.add(Linear(config.ndim_input, 1000, use_weightnorm=config.use_weightnorm))
+	feature_extractor.add(BatchNormalization(1000))
 	feature_extractor.add(Activation(config.nonlinearity))
-	feature_extractor.add(gaussian_noise(std=0.5))
-	feature_extractor.add(Linear(800, 800, use_weightnorm=config.use_weightnorm))
-	feature_extractor.add(BatchNormalization(800))
+	feature_extractor.add(gaussian_noise(std=0.3))
+	feature_extractor.add(Linear(None, 500, use_weightnorm=config.use_weightnorm))
+	feature_extractor.add(BatchNormalization(500))
 	feature_extractor.add(Activation(config.nonlinearity))
-	feature_extractor.add(gaussian_noise(std=0.5))
-	feature_extractor.add(Linear(800, config.num_experts, use_weightnorm=config.use_weightnorm))
-	feature_extractor.add(BatchNormalization(config.num_experts))
+	feature_extractor.add(gaussian_noise(std=0.3))
+	feature_extractor.add(Linear(None, 250, use_weightnorm=config.use_weightnorm))
+	feature_extractor.add(BatchNormalization(250))
+	feature_extractor.add(Activation(config.nonlinearity))
+	feature_extractor.add(gaussian_noise(std=0.3))
+	feature_extractor.add(Linear(None, config.num_experts, use_weightnorm=config.use_weightnorm))
 	feature_extractor.add(tanh())
 	feature_extractor.build()
 
@@ -66,7 +69,7 @@ else:
 
 	# b
 	b = Sequential(weight_initializer=config.weight_initializer, weight_init_std=config.weight_init_std)
-	b.add(Linear(config.num_experts, config.num_experts, nobias=True))
+	b.add(Linear(config.ndim_input, 1, nobias=True))
 	b.build()
 
 	params = {
@@ -96,8 +99,8 @@ else:
 	config.ndim_output = image_width * image_height
 	config.distribution_output = "sigmoid"
 	config.use_weightnorm = False
-	config.weight_init_std = 1
-	config.weight_initializer = "GlorotNormal"
+	config.weight_init_std = 0.05
+	config.weight_initializer = "Normal"
 	config.nonlinearity = "relu"
 	config.optimizer = "Adam"
 	config.learning_rate = 0.0002
@@ -107,13 +110,13 @@ else:
 
 	# model
 	model = Sequential(weight_initializer=config.weight_initializer, weight_init_std=config.weight_init_std)
-	model.add(Linear(config.ndim_input, 800, use_weightnorm=config.use_weightnorm))
-	model.add(BatchNormalization(800))
+	model.add(Linear(config.ndim_input, 500, use_weightnorm=config.use_weightnorm))
+	model.add(BatchNormalization(500))
 	model.add(Activation(config.nonlinearity))
-	model.add(Linear(800, 800, use_weightnorm=config.use_weightnorm))
-	model.add(BatchNormalization(800))
+	model.add(Linear(None, 500, use_weightnorm=config.use_weightnorm))
+	model.add(BatchNormalization(500))
 	model.add(Activation(config.nonlinearity))
-	model.add(Linear(800, config.ndim_output, use_weightnorm=config.use_weightnorm))
+	model.add(Linear(None, config.ndim_output, use_weightnorm=config.use_weightnorm))
 	if config.distribution_output == "sigmoid":
 		model.add(sigmoid())
 	if config.distribution_output == "tanh":

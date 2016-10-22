@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import math
 import numpy as np
-import chainer, os, collections, six, math, random, time
+import chainer, os, collections, six, math, random, time, copy
 from chainer import cuda, Variable, optimizers, serializers, function, optimizer, initializers
 from chainer.utils import type_check
 from chainer import functions as F
@@ -11,14 +11,14 @@ from params import Params
 import sequential
 import weightnorm as WN
 
-nonlinearities = {
-	"sigmoid": F.sigmoid, 
-	"tanh": F.tanh, 
-	"softplus": F.softplus, 
-	"relu": F.relu, 
-	"leaky_relu": F.leaky_relu, 
-	"elu": F.elu
-}
+class Object(object):
+	pass
+
+def to_object(dict):
+	obj = Object()
+	for key, value in dict.iteritems():
+		setattr(obj, key, value)
+	return obj
 
 class EnergyModelParams(Params):
 	def __init__(self):
@@ -86,8 +86,10 @@ class Chain(chainer.Chain):
 class DDGM():
 
 	def __init__(self, params_energy_model, params_generative_model):
-		self.params_energy_model = params_energy_model
-		self.params_generative_model = params_generative_model
+		self.params_energy_model = copy.deepcopy(params_energy_model)
+		self.params_energy_model["config"] = to_object(params_energy_model["config"])
+		self.params_generative_model = copy.deepcopy(params_generative_model)
+		self.params_generative_model["config"] = to_object(params_generative_model["config"])
 		self.build_network()
 		self.setup_optimizers()
 		self._gpu = False
@@ -121,36 +123,26 @@ class DDGM():
 
 	def build_generative_model(self):
 		params = self.params_generative_model
-		config = params["config"]
-
-		if config["distribution_output"] == "sigmoid":
-			self.generative_model = SigmoidDeepGenerativeModel()
-		elif config["distribution_output"] == "tanh":
-			self.generative_model = TanhDeepGenerativeModel()
-		elif config["distribution_output"] == "universal":
-			self.generative_model = DeepGenerativeModel()
-		else:
-			raise Exception()
-
+		self.generative_model = DeepGenerativeModel()
 		self.generative_model.add_model(sequential.from_dict(params["model"]))
 
 	def setup_optimizers(self):
 		config = self.params_energy_model["config"]
-		opt = self.get_optimizer(config["optimizer"], config["learning_rate"], config["momentum"])
+		opt = self.get_optimizer(config.optimizer, config.learning_rate, config.momentum)
 		opt.setup(self.energy_model)
-		if config["weight_decay"] > 0:
-			opt.add_hook(optimizer.WeightDecay(config["weight_decay"]))
-		if config["gradient_clipping"] > 0:
-			opt.add_hook(GradientClipping(config["gradient_clipping"]))
+		if config.weight_decay > 0:
+			opt.add_hook(optimizer.WeightDecay(config.weight_decay))
+		if config.gradient_clipping > 0:
+			opt.add_hook(GradientClipping(config.gradient_clipping))
 		self.optimizer_energy_model = opt
 		
 		config = self.params_generative_model["config"]
-		opt = self.get_optimizer(config["optimizer"], config["learning_rate"], config["momentum"])
+		opt = self.get_optimizer(config.optimizer, config.learning_rate, config.momentum)
 		opt.setup(self.generative_model)
-		if config["weight_decay"] > 0:
-			opt.add_hook(optimizer.WeightDecay(config["weight_decay"]))
-		if config["gradient_clipping"] > 0:
-			opt.add_hook(GradientClipping(config["gradient_clipping"]))
+		if config.weight_decay > 0:
+			opt.add_hook(optimizer.WeightDecay(config.weight_decay))
+		if config.gradient_clipping > 0:
+			opt.add_hook(GradientClipping(config.gradient_clipping))
 		self.optimizer_generative_model = opt
 
 	def update_laerning_rate(self, lr):
@@ -206,10 +198,12 @@ class DDGM():
 		return self.generative_model.compute_entropy()
 
 	def sample_z(self, batchsize=1):
+		config = self.params_generative_model["config"]
+		ndim_z = config.ndim_input
 		# uniform
-		z_batch = np.random.uniform(-1, 1, (batchsize, self.params.ndim_z)).astype(np.float32)
+		z_batch = np.random.uniform(-1, 1, (batchsize, ndim_z)).astype(np.float32)
 		# gaussian
-		# z_batch = np.random.normal(0, 1, (batchsize, self.params.ndim_z)).astype(np.float32)
+		# z_batch = np.random.normal(0, 1, (batchsize, ndim_z)).astype(np.float32)
 		return z_batch
 
 	def generate_x(self, batchsize=1, test=False, as_numpy=False):
@@ -253,7 +247,7 @@ class DDGM():
 			if isinstance(prop, chainer.Chain) or isinstance(prop, chainer.optimizer.GradientMethod):
 				filename = dir + "/{}.hdf5".format(attr)
 				if os.path.isfile(filename):
-					print "loading",  filename
+					print "loading {} ...".format(filename)
 					serializers.load_hdf5(filename, prop)
 				else:
 					print filename, "not found."
@@ -272,7 +266,6 @@ class DDGM():
 				if os.path.isfile(filename):
 					os.remove(filename)
 				serializers.save_hdf5(filename, prop)
-		print "model saved."
 
 class DeepGenerativeModel(Chain):
 
@@ -286,29 +279,13 @@ class DeepGenerativeModel(Chain):
 
 	def compute_entropy(self):
 		entropy = 0
-
-		if self.use_batchnorm == False:
-			return entropy
-
-		for i in range(self.n_layers):
-			bn = getattr(self, "batchnorm_%d" % i)
-			entropy += F.sum(F.log(2 * math.e * math.pi * bn.gamma ** 2 + 1e-8) / 2)
-
+		for i, link in enumerate(self.model.links):
+			if isinstance(link, L.BatchNormalization):
+				entropy += F.sum(F.log(2 * math.e * math.pi * link.gamma ** 2 + 1e-8) / 2)
 		return entropy
 
 	def __call__(self, z, test=False):
-		self.test = test
-		return self.model(z)
-
-class SigmoidDeepGenerativeModel(DeepGenerativeModel):
-	def __call__(self, z, test=False):
-		self.test = test
-		return F.sigmoid(self.compute_output(z))
-
-class TanhDeepGenerativeModel(DeepGenerativeModel):
-	def __call__(self, z, test=False):
-		self.test = test
-		return F.tanh(self.compute_output(z))
+		return self.model(z, test=test)
 
 class DeepEnergyModel(Chain):
 
@@ -322,6 +299,8 @@ class DeepEnergyModel(Chain):
 
 	def add_b(self, sequence):
 		self.add_sequence(sequence, "b")
+		W = sequence.links[0].W.data
+		xp = cuda.get_array_module(W)
 		self.b = sequence
 
 	@property
@@ -342,6 +321,6 @@ class DeepEnergyModel(Chain):
 
 	def __call__(self, x, test=False):
 		self.test = test
-		features = self.feature_extractor(x)
+		features = self.feature_extractor(x, test=test)
 		energy, product_of_experts = self.compute_energy(x, features)
 		return energy, product_of_experts

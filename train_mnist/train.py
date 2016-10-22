@@ -33,7 +33,7 @@ def sample_from_data(images, batchsize):
 
 def main():
 	# load MNIST images
-	images, labels = load_test_images()
+	images, labels = load_train_images()
 
 	# config
 	config_energy_model = to_object(params_energy_model["config"])
