@@ -3,6 +3,7 @@ import os, sys, time
 from chainer import cuda
 from chainer import functions as F
 sys.path.append(os.path.split(os.getcwd())[0])
+from progress import show_progress
 from mnist_tools import load_train_images, load_test_images
 from model import params_energy_model, params_generative_model, ddgm
 from args import args
@@ -110,5 +111,5 @@ def main():
 		if epoch % plot_interval == 0 or epoch == 1:
 			plot(filename="epoch_{}_time_{}min".format(epoch, int(total_time / 60)))
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 	main()
