@@ -37,10 +37,16 @@ def main():
 	if params.gpu_enabled:
 		cuda.cupy.random.seed(args.seed)
 
-	# init weightnorm layers of the energy model
-	print "initializing weight normalization layers..."
-	x_positive = sample_from_data(images, len(images) // 10)
-	ddgm.compute_energy(x_positive)
+	# init weightnorm layers
+	if params.energy_model.use_weightnorm:
+		print "initializing weight normalization layers of the energy model..."
+		x_positive = sample_from_data(images, len(images) // 10)
+		ddgm.compute_energy(x_positive)
+
+	if params.generative_model.use_weightnorm:
+		print "initializing weight normalization layers of the energy model..."
+		x_positive = sample_from_data(images, len(images) // 10)
+		ddgm.compute_energy(x_positive)
 
 	# training
 	total_time = 0
