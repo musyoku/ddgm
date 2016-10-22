@@ -3,10 +3,20 @@ import os, sys, time
 from chainer import cuda
 from chainer import functions as F
 sys.path.append(os.path.split(os.getcwd())[0])
-from model import params, ddgm
+from mnist_tools import load_train_images, load_test_images
+from model import params_energy_model, params_generative_model, ddgm
 from args import args
-from dataset import binarize_data, load_binary_images
+from dataset import binarize_data
 from plot import plot
+
+class Object(object):
+	pass
+
+def to_object(dict):
+	obj = Object()
+	for key, value in dict.iteritems():
+		setattr(obj, key, value)
+	return obj
 
 def sample_from_data(images, batchsize):
 	example = images[0]
@@ -15,7 +25,7 @@ def sample_from_data(images, batchsize):
 	indices = np.random.choice(np.arange(len(images), dtype=np.int32), size=batchsize, replace=False)
 	for j in range(batchsize):
 		data_index = indices[j]
-		img = images[data_index]
+		img = images[data_index].astype(np.float32) / 255.0
 		x_batch[j] = img.reshape((ndim_x,))
 
 	x_batch = binarize_data(x_batch)
@@ -23,8 +33,12 @@ def sample_from_data(images, batchsize):
 
 def main():
 	# load MNIST images
-	images = load_binary_images(args.image_dir)
-	
+	images, labels = load_test_images()
+
+	# config
+	config_energy_model = to_object(params_energy_model["config"])
+	config_generative_model = to_object(params_generative_model["config"])
+
 	# settings
 	max_epoch = 1000
 	n_trains_per_epoch = 1000
@@ -34,17 +48,17 @@ def main():
 
 	# seed
 	np.random.seed(args.seed)
-	if params.gpu_enabled:
+	if args.gpu_enabled:
 		cuda.cupy.random.seed(args.seed)
 
 	# init weightnorm layers
-	if params.energy_model.use_weightnorm:
-		print "initializing weight normalization layers of the energy model..."
+	if config_energy_model.use_weightnorm:
+		print "initializing weight normalization layers of the energy model ..."
 		x_positive = sample_from_data(images, len(images) // 10)
 		ddgm.compute_energy(x_positive)
 
-	if params.generative_model.use_weightnorm:
-		print "initializing weight normalization layers of the energy model..."
+	if config_generative_model.use_weightnorm:
+		print "initializing weight normalization layers of the generative model ..."
 		x_positive = sample_from_data(images, len(images) // 10)
 		ddgm.compute_energy(x_positive)
 

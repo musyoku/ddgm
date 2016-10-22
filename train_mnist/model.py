@@ -36,6 +36,7 @@ else:
 	config.num_experts = 128
 	config.weight_init_std = 0.05
 	config.weight_initializer = "GlorotNormal"
+	config.use_weightnorm = False
 	config.nonlinearity = "elu"
 	config.optimizer = "Adam"
 	config.learning_rate = 0.0002
@@ -45,15 +46,15 @@ else:
 
 	# feature extractor
 	feature_extractor = Sequential(weight_initializer=config.weight_initializer, weight_init_std=config.weight_init_std)
-	feature_extractor.add(Linear(config.ndim_input, 800, use_weightnorm=True))
+	feature_extractor.add(Linear(config.ndim_input, 800, use_weightnorm=config.use_weightnorm))
 	feature_extractor.add(BatchNormalization(800))
 	feature_extractor.add(Activation(config.nonlinearity))
 	feature_extractor.add(gaussian_noise(std=0.5))
-	feature_extractor.add(Linear(800, 800, use_weightnorm=True))
+	feature_extractor.add(Linear(800, 800, use_weightnorm=config.use_weightnorm))
 	feature_extractor.add(BatchNormalization(800))
 	feature_extractor.add(Activation(config.nonlinearity))
 	feature_extractor.add(gaussian_noise(std=0.5))
-	feature_extractor.add(Linear(800, config.num_experts, use_weightnorm=True))
+	feature_extractor.add(Linear(800, config.num_experts, use_weightnorm=config.use_weightnorm))
 	feature_extractor.add(BatchNormalization(config.num_experts))
 	feature_extractor.add(tanh())
 	feature_extractor.build()
@@ -94,12 +95,6 @@ else:
 	config.ndim_input = ndim_latent_code
 	config.ndim_output = image_width * image_height
 	config.distribution_output = "sigmoid"
-	config.hidden_units = [800, 800]
-	config.use_dropout_at_layer = [False, False]
-	config.add_output_noise_at_layer = [False, False]
-	config.use_batchnorm = True
-	config.batchnorm_to_input = True
-	config.batchnorm_before_activation = True
 	config.use_weightnorm = False
 	config.weight_init_std = 1
 	config.weight_initializer = "GlorotNormal"
@@ -112,13 +107,13 @@ else:
 
 	# model
 	model = Sequential(weight_initializer=config.weight_initializer, weight_init_std=config.weight_init_std)
-	model.add(Linear(config.ndim_input, 800, use_weightnorm=False))
+	model.add(Linear(config.ndim_input, 800, use_weightnorm=config.use_weightnorm))
 	model.add(BatchNormalization(800))
 	model.add(Activation(config.nonlinearity))
-	model.add(Linear(800, 800, use_weightnorm=False))
+	model.add(Linear(800, 800, use_weightnorm=config.use_weightnorm))
 	model.add(BatchNormalization(800))
 	model.add(Activation(config.nonlinearity))
-	model.add(Linear(800, config.ndim_output, use_weightnorm=False))
+	model.add(Linear(800, config.ndim_output, use_weightnorm=config.use_weightnorm))
 	if config.distribution_output == "sigmoid":
 		model.add(BatchNormalization(800))
 		model.add(sigmoid())
