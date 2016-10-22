@@ -115,10 +115,8 @@ else:
 	model.add(Activation(config.nonlinearity))
 	model.add(Linear(800, config.ndim_output, use_weightnorm=config.use_weightnorm))
 	if config.distribution_output == "sigmoid":
-		model.add(BatchNormalization(800))
 		model.add(sigmoid())
 	if config.distribution_output == "tanh":
-		model.add(BatchNormalization(800))
 		model.add(tanh())
 	model.build()
 
