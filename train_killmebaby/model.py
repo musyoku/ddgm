@@ -58,14 +58,12 @@ else:
 	feature_extractor.add(dropout())
 	feature_extractor.add(Convolution2D(256, 1024, ksize=4, stride=2, pad=1, use_weightnorm=config.use_weightnorm))
 	feature_extractor.add(Activation(config.nonlinearity))
-	feature_extractor.add(dropout())
-	feature_extractor.add(Linear(None, config.num_experts, use_weightnorm=config.use_weightnorm))
 	feature_extractor.add(tanh())
 	feature_extractor.build()
 
 	# experts
 	experts = Sequential(weight_initializer=config.weight_initializer, weight_init_std=config.weight_init_std)
-	experts.add(Linear(config.num_experts, config.num_experts))
+	experts.add(Linear(None, config.num_experts))
 	experts.build()
 
 	# b
@@ -115,7 +113,7 @@ else:
 	# compute required paddings
 	paddings = get_paddings_of_deconv_layers(image_width, num_layers=3, ksize=4, stride=2)
 
-	model = Sequential(weight_initializer="GlorotNormal", weight_init_std=0.05)
+	model = Sequential(weight_initializer=config.weight_initializer, weight_init_std=config.weight_init_std)
 	model.add(Linear(config.ndim_input, 512 * input_size ** 2, use_weightnorm=config.use_weightnorm))
 	model.add(BatchNormalization(512 * input_size ** 2))
 	model.add(Activation(config.nonlinearity))

@@ -39,10 +39,10 @@ def main():
 	
 	# settings
 	max_epoch = 1000
-	n_trains_per_epoch = 100
+	n_trains_per_epoch = 500
 	batchsize_positive = 128
 	batchsize_negative = 128
-	plot_interval = 30
+	plot_interval = 5
 
 	# seed
 	np.random.seed(args.seed)
@@ -95,8 +95,7 @@ def main():
 			sum_energy_positive += float(energy_positive.data)
 			sum_energy_negative += float(energy_negative.data)
 			sum_kld += float(kld.data)
-			if t % 10 == 0:
-				progress.show(t, n_trains_per_epoch, {})
+			progress.show(t, n_trains_per_epoch, {})
 
 		progress.show(n_trains_per_epoch, n_trains_per_epoch, {
 			"x+": int(sum_energy_positive / n_trains_per_epoch),
