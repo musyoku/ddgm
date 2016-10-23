@@ -299,8 +299,6 @@ class DeepEnergyModel(Chain):
 
 	def add_b(self, sequence):
 		self.add_sequence(sequence, "b")
-		W = sequence.links[0].W.data
-		xp = cuda.get_array_module(W)
 		self.b = sequence
 
 	@property
@@ -315,7 +313,12 @@ class DeepEnergyModel(Chain):
 		product_of_experts = -softplus(experts)
 
 		sigma = 1.0
-		energy = F.sum(x * x, axis=1) / sigma - F.reshape(self.b(x), (-1,)) + F.sum(product_of_experts, axis=1)
+		if x.data.ndim == 4:
+			batchsize = x.data.shape[0]
+			_x = F.reshape(x, (batchsize, -1))
+			energy = F.sum(_x * _x, axis=1) / sigma - F.reshape(self.b(x), (-1,)) + F.sum(experts, axis=1)
+		else:
+			energy = F.sum(x * x, axis=1) / sigma - F.reshape(self.b(x), (-1,)) + F.sum(product_of_experts, axis=1)
 		
 		return energy, product_of_experts
 

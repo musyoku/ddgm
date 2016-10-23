@@ -22,7 +22,7 @@ class Progress(object):
 				str += "="
 			else:
 				if str[-1] == "=":
-					str += ">"
+					str = str[:-1] + ">"
 				else:
 					str += "."
 		str = str[:num_segments] + "]"
@@ -39,7 +39,7 @@ class Progress(object):
 		return str
 
 	def get_elapsed_minute(self):
-		return int((time.time() - self.start_time) / 60)
+		return int((time.time() - self.epoch_start_time) / 60)
 
 	def show(self, current_step, total_steps, args):
 		digits = int(math.log10(total_steps)) + 1

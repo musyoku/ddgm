@@ -25,7 +25,7 @@ def load_mnist(data_filename, label_filename, num):
 				images[i, j] = ord(f_images.read(1))
 
 			if i % 100 == 0 or i == num - 1:
-				sys.stdout.write("\rloading images...({} / {})".format(i+1, num))
+				sys.stdout.write("\rloading images ... ({} / {})".format(i, num))
 				sys.stdout.flush()
 	sys.stdout.write("\n")
 	return images, label
@@ -43,13 +43,13 @@ def load_test_images():
 	return images, labels
 
 def download_mnist_data():
-	print("Downloading {}...".format(train_images_filename))
+	print("Downloading {} ...".format(train_images_filename))
 	request.urlretrieve("{}/{}".format(parent, train_images_filename), train_images_filename)
-	print("Downloading {}...".format(train_labels_filename))
+	print("Downloading {} ...".format(train_labels_filename))
 	request.urlretrieve("{}/{}".format(parent, train_labels_filename), train_labels_filename)
-	print("Downloading {}...".format(test_images_filename))
+	print("Downloading {} ...".format(test_images_filename))
 	request.urlretrieve("{}/{}".format(parent, test_images_filename), test_images_filename)
-	print("Downloading {}...".format(test_labels_filename))
+	print("Downloading {} ...".format(test_labels_filename))
 	request.urlretrieve("{}/{}".format(parent, test_labels_filename), test_labels_filename)
 	print("Done")
 
