@@ -3,7 +3,7 @@ import os, sys, time
 from chainer import cuda
 from chainer import functions as F
 sys.path.append(os.path.split(os.getcwd())[0])
-from progress import show_progress
+from progress import Progress
 from mnist_tools import load_train_images, load_test_images
 from model import params_energy_model, params_generative_model, ddgm
 from args import args
@@ -34,7 +34,7 @@ def sample_from_data(images, batchsize):
 
 def main():
 	# load MNIST images
-	images, labels = load_train_images()
+	images, labels = load_test_images()
 
 	# config
 	config_energy_model = to_object(params_energy_model["config"])
@@ -64,12 +64,12 @@ def main():
 		ddgm.compute_energy(x_positive)
 
 	# training
-	total_time = 0
+	progress = Progress()
 	for epoch in xrange(1, max_epoch):
+		progress.start_epoch(epoch, max_epoch)
 		sum_energy_positive = 0
 		sum_energy_negative = 0
 		sum_kld = 0
-		epoch_time = time.time()
 
 		for t in xrange(n_trains_per_epoch):
 			# sample from data distribution
@@ -98,18 +98,17 @@ def main():
 			sum_energy_negative += float(energy_negative.data)
 			sum_kld += float(kld.data)
 			if t % 10 == 0:
-				sys.stdout.write("\rTraining in progress...({} / {})".format(t, n_trains_per_epoch))
-				sys.stdout.flush()
+				progress.show(t, n_trains_per_epoch, {})
 
-		epoch_time = time.time() - epoch_time
-		total_time += epoch_time
-		sys.stdout.write("\r")
-		print "epoch: {} energy: x+ {:.3f} x- {:.3f} kld: {:.3f} time: {} min total: {} min".format(epoch, sum_energy_positive / n_trains_per_epoch, sum_energy_negative / n_trains_per_epoch, sum_kld / n_trains_per_epoch, int(epoch_time / 60), int(total_time / 60))
-		sys.stdout.flush()
+		progress.show(n_trains_per_epoch, n_trains_per_epoch, {
+			"x+": sum_energy_positive / n_trains_per_epoch,
+			"x-": sum_energy_negative / n_trains_per_epoch,
+			"KLD": sum_kld / n_trains_per_epoch
+		})
 		ddgm.save(args.model_dir)
 
 		if epoch % plot_interval == 0 or epoch == 1:
-			plot(filename="epoch_{}_time_{}min".format(epoch, int(total_time / 60)))
+			plot(filename="epoch_{}_time_{}min".format(epoch, progress.get_total_time()))
 
 if __name__ == "__main__":
 	main()
