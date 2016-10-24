@@ -3,7 +3,7 @@ import numpy as np
 sys.path.append(os.path.split(os.getcwd())[0])
 import visualizer
 from args import args
-from model import params, ddgm
+from model import params_energy_model, params_generative_model, ddgm
 import sampler
 
 def main():

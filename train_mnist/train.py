@@ -60,8 +60,7 @@ def main():
 
 	if config_generative_model.use_weightnorm:
 		print "initializing weight normalization layers of the generative model ..."
-		x_positive = sample_from_data(images, len(images) // 10)
-		ddgm.compute_energy(x_positive)
+		x_negative = ddgm.generate_x(len(images) // 10)
 
 	# training
 	progress = Progress()

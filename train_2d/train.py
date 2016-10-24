@@ -3,9 +3,19 @@ import os, sys, time, random, math
 from chainer import cuda
 from chainer import functions as F
 sys.path.append(os.path.split(os.getcwd())[0])
-from model import params, ddgm
+from progress import Progress
+from model import params_energy_model, params_generative_model, ddgm
 from args import args
 import sampler
+
+class Object(object):
+	pass
+
+def to_object(dict):
+	obj = Object()
+	for key, value in dict.iteritems():
+		setattr(obj, key, value)
+	return obj
 
 def main():
 	# settings
@@ -14,47 +24,61 @@ def main():
 	batchsize_positive = 100
 	batchsize_negative = 100
 
+	# config
+	config_energy_model = to_object(params_energy_model["config"])
+	config_generative_model = to_object(params_generative_model["config"])
+
 	# seed
 	np.random.seed(args.seed)
-	if params.gpu_enabled:
+	if args.gpu_enabled:
 	    cuda.cupy.random.seed(args.seed)
 
-	total_time = 0
+	# init weightnorm layers
+	if config_energy_model.use_weightnorm:
+		print "initializing weight normalization layers of the energy model ..."
+		x_positive = sampler.sample_from_gaussian_mixture(batchsize_positive * 10, 2, 10)
+		ddgm.compute_energy(x_positive)
+
+	if config_generative_model.use_weightnorm:
+		print "initializing weight normalization layers of the generative model ..."
+		x_negative = ddgm.generate_x(batchsize_negative * 10)
+
+	progress = Progress()
 	for epoch in xrange(1, max_epoch):
+		progress.start_epoch(epoch, max_epoch)
 		sum_energy_positive = 0
 		sum_energy_negative = 0
 		sum_kld = 0
-		epoch_time = time.time()
 
 		for t in xrange(n_trains_per_epoch):
 			# sample from data distribution
-			x_positive = sampler.sample_from_gaussian_mixture(batchsize_positive, params.ndim_x, 10)
+			x_positive = sampler.sample_from_gaussian_mixture(batchsize_positive, 2, 10)
+
+			# sample from generator
+			x_negative = ddgm.generate_x(batchsize_negative)
 
 			# train energy model
-			x_negative = ddgm.generate_x(batchsize_negative)
-			loss, positive_energy, negative_energy = ddgm.compute_loss(x_positive, x_negative)
-			# loss := positive_energy - negative_energy
-			ddgm.backprop_energy_model(positive_energy)
-			ddgm.backprop_energy_model(-negative_energy)
-			# ddgm.backprop_energy_model(loss)
-
+			energy_positive = ddgm.compute_energy_sum(x_positive)
+			energy_negative = ddgm.compute_energy_sum(x_negative)
+			loss = energy_positive - energy_negative
+			ddgm.backprop_energy_model(loss)
+			
 			# train generative model
 			x_negative = ddgm.generate_x(batchsize_negative)
 			kld = ddgm.compute_kld_between_generator_and_energy_model(x_negative)
 			ddgm.backprop_generative_model(kld)
 
-			sum_energy_positive += float(positive_energy.data)
-			sum_energy_negative += float(negative_energy.data)
+			sum_energy_positive += float(energy_positive.data)
+			sum_energy_negative += float(energy_negative.data)
 			sum_kld += float(kld.data)
 			if t % 10 == 0:
-				sys.stdout.write("\rTraining in progress...({} / {})".format(t, n_trains_per_epoch))
-				sys.stdout.flush()
+				progress.show(t, n_trains_per_epoch, {})
 
-		epoch_time = time.time() - epoch_time
-		total_time += epoch_time
-		sys.stdout.write("\r")
-		print "epoch: {} loss: {:.3f} {:.3f} kld: {:.3f} time: {} min total: {} min".format(epoch, sum_energy_positive / n_trains_per_epoch, sum_energy_negative / n_trains_per_epoch, sum_kld / n_trains_per_epoch, int(epoch_time / 60), int(total_time / 60))
-		sys.stdout.flush()
+		progress.show(n_trains_per_epoch, n_trains_per_epoch, {
+			"x+": sum_energy_positive / n_trains_per_epoch,
+			"x-": sum_energy_negative / n_trains_per_epoch,
+			"KLD": int(sum_kld / n_trains_per_epoch)
+		})
 		ddgm.save(args.model_dir)
 
 if __name__ == '__main__':

@@ -33,8 +33,10 @@ class Progress(object):
 	def get_args(self, args):
 		str = ""
 		for key, value in args.iteritems():
-
-			str += " - {}: {}".format(key, value)
+			if isinstance(value, float):
+				str += " - {}: {:.3f}".format(key, value)
+			else:
+				str += " - {}: {}".format(key, value)
 		return str
 
 	def get_elapsed_minute(self):

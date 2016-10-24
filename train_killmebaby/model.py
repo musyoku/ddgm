@@ -96,7 +96,7 @@ else:
 	config = GenerativeModelParams()
 	config.ndim_input = ndim_latent_code
 	config.distribution_output = "sigmoid"
-	config.use_weightnorm = True
+	config.use_weightnorm = False
 	config.weight_init_std = 0.05
 	config.weight_initializer = "Normal"
 	config.nonlinearity = "relu"

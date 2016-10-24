@@ -52,13 +52,12 @@ def main():
 	# init weightnorm layers
 	if config_energy_model.use_weightnorm:
 		print "initializing weight normalization layers of the energy model ..."
-		x_positive = sample_from_data(images, batchsize_positive * 10)
+		x_positive = sample_from_data(images, batchsize_positive * 5)
 		ddgm.compute_energy(x_positive)
 
 	if config_generative_model.use_weightnorm:
 		print "initializing weight normalization layers of the generative model ..."
-		x_positive = sample_from_data(images, batchsize_positive * 10)
-		ddgm.compute_energy(x_positive)
+		x_negative = ddgm.generate_x(batchsize_negative * 5)
 
 	progress = Progress()
 	for epoch in xrange(1, max_epoch):
