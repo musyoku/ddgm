@@ -76,17 +76,11 @@ def main():
 			x_positive = sample_from_data(images, batchsize_positive)
 			x_negative = ddgm.generate_x(batchsize_negative)
 
-			if True:
-				loss, energy_positive, energy_negative = ddgm.compute_loss(x_positive, x_negative)
-				ddgm.backprop_energy_model(loss)
-			else:
-				energy_positive, experts_positive = ddgm.compute_energy(x_positive)
-				energy_positive = F.sum(energy_positive) / ddgm.get_batchsize(x_positive)
-				ddgm.backprop_energy_model(energy_positive)
-				
-				energy_negative, experts_negative = ddgm.compute_energy(x_negative)
-				energy_negative = F.sum(energy_negative) / ddgm.get_batchsize(x_negative)
-				ddgm.backprop_energy_model(-energy_negative)
+			# train energy model
+			energy_positive = ddgm.compute_energy_sum(x_positive)
+			energy_negative = ddgm.compute_energy_sum(x_negative)
+			loss = energy_positive - energy_negative
+			ddgm.backprop_energy_model(loss)
 
 			# train generative model
 			# TODO: KLD must be greater than or equal to 0

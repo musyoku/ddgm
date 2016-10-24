@@ -46,7 +46,6 @@ else:
 
 	# feature extractor
 	feature_extractor = Sequential(weight_initializer=config.weight_initializer, weight_init_std=config.weight_init_std)
-	feature_extractor.add(gaussian_noise(std=0.2))
 	feature_extractor.add(Convolution2D(3, 32, ksize=4, stride=2, pad=1, use_weightnorm=config.use_weightnorm))
 	feature_extractor.add(Activation(config.nonlinearity))
 	feature_extractor.add(dropout())
@@ -63,7 +62,7 @@ else:
 
 	# experts
 	experts = Sequential(weight_initializer=config.weight_initializer, weight_init_std=config.weight_init_std)
-	experts.add(Linear(None, config.num_experts))
+	experts.add(Linear(None, config.num_experts, use_weightnorm=config.use_weightnorm))
 	experts.build()
 
 	# b
@@ -97,7 +96,7 @@ else:
 	config = GenerativeModelParams()
 	config.ndim_input = ndim_latent_code
 	config.distribution_output = "sigmoid"
-	config.use_weightnorm = False
+	config.use_weightnorm = True
 	config.weight_init_std = 0.05
 	config.weight_initializer = "Normal"
 	config.nonlinearity = "relu"

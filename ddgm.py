@@ -190,9 +190,15 @@ class DDGM():
 		self.optimizer_energy_model.zero_grads()
 		self.optimizer_generative_model.zero_grads()
 
+	# returns energy and product of experts
 	def compute_energy(self, x_batch, test=False):
 		x_batch = self.to_variable(x_batch)
 		return self.energy_model(x_batch, test=test)
+
+	def compute_energy_sum(self, x_batch, test=False):
+		energy, experts = self.compute_energy(x_batch, test)
+		energy = F.sum(energy) / self.get_batchsize(x_batch)
+		return energy
 
 	def compute_entropy(self):
 		return self.generative_model.compute_entropy()

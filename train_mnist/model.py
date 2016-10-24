@@ -36,7 +36,7 @@ else:
 	config.num_experts = 128
 	config.weight_init_std = 0.05
 	config.weight_initializer = "Normal"
-	config.use_weightnorm = False
+	config.use_weightnorm = True
 	config.nonlinearity = "elu"
 	config.optimizer = "Adam"
 	config.learning_rate = 0.0002
@@ -61,7 +61,7 @@ else:
 
 	# experts
 	experts = Sequential(weight_initializer=config.weight_initializer, weight_init_std=config.weight_init_std)
-	experts.add(Linear(config.num_experts, config.num_experts))
+	experts.add(Linear(config.num_experts, config.num_experts, use_weightnorm=config.use_weightnorm))
 	experts.build()
 
 	# b
@@ -95,7 +95,7 @@ else:
 	config.ndim_input = ndim_latent_code
 	config.ndim_output = image_width * image_height
 	config.distribution_output = "sigmoid"
-	config.use_weightnorm = False
+	config.use_weightnorm = True
 	config.weight_init_std = 0.05
 	config.weight_initializer = "Normal"
 	config.nonlinearity = "relu"
