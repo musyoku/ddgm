@@ -9,7 +9,6 @@ from chainer import links as L
 from softplus import softplus
 from params import Params
 import sequential
-import weightnorm as WN
 
 class Object(object):
 	pass
