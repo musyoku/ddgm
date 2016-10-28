@@ -13,10 +13,11 @@ def _as_mat(x):
 		return x
 	return x.reshape(len(x), -1)
 
-def norm_gpu(x):
-	return cuda.cupy.sqrt(cuda.cupy.sum(x ** 2))
-
-cuda.cupy.linalg.norm = norm_gpu
+def get_norm(W):
+	xp = cuda.get_array_module(W)
+	norm = xp.sqrt(xp.sum(W ** 2, axis=1)) + 1e-9
+	norm = norm.reshape((-1, 1))
+	return norm
 
 class LinearFunction(linear.LinearFunction):
 
@@ -31,7 +32,7 @@ class LinearFunction(linear.LinearFunction):
 			g_type.dtype.kind == "f",
 			x_type.ndim >= 2,
 			w_type.ndim == 2,
-			g_type.ndim == 1,
+			g_type.ndim == 2,
 			type_check.prod(x_type.shape[1:]) == w_type.shape[1],
 		)
 
@@ -49,7 +50,7 @@ class LinearFunction(linear.LinearFunction):
 		g = inputs[2]
 		xp = cuda.get_array_module(V)
 
-		self.normV = xp.linalg.norm(V)
+		self.normV = get_norm(V)
 		self.normalizedV = V / self.normV
 		self.W = g * self.normalizedV
 
@@ -70,7 +71,7 @@ class LinearFunction(linear.LinearFunction):
 		gx = gy.dot(W).astype(x.dtype, copy=False).reshape(inputs[0].shape)
 		gW = gy.T.dot(x).astype(W.dtype, copy=False)
 
-		gg = xp.sum(gW * self.normalizedV, keepdims=True).reshape((1,)).astype(g.dtype, copy=False)
+		gg = xp.sum(gW * self.normalizedV, axis=1, keepdims=True).astype(g.dtype, copy=False)
 		gV = g * (gW - gg * self.normalizedV) / self.normV
 		gV = gV.astype(V.dtype, copy=False)
 
@@ -91,7 +92,6 @@ class Linear(link.Link):
 	def __init__(self, in_size, out_size, wscale=1, bias=0, nobias=False, initialV=None, dtype=np.float32):
 		super(Linear, self).__init__()
 
-		self.weight_initialized = False
 		self.initialV = initialV
 		self.wscale = wscale
 		self.nobias = nobias
@@ -112,36 +112,35 @@ class Linear(link.Link):
 
 	def _initialize_weight(self, in_size):
 		self.add_param("V", (self.out_size, in_size), initializer=initializers._get_initializer(self.initialV, math.sqrt(self.wscale)))
-		self.weight_initialized = True
 
 	def _initialize_params(self, t):
 		xp = cuda.get_array_module(t)
-		self.mean_t = float(xp.mean(t))
-		self.std_t = math.sqrt(float(xp.var(t)))
+		self.mean_t = xp.mean(t, axis=0)
+		self.std_t = xp.sqrt(xp.var(t, axis=0))
 		g = 1 / self.std_t
 		b = -self.mean_t / self.std_t
 
-		print "g <- {}, b <- {}".format(g, b)
+		# print "g <- {}, b <- {}".format(g, b)
 
 		if self.nobias == False:
 			self.add_param("b", self.out_size, initializer=initializers.Constant(b, self.dtype))
-		self.add_param("g", 1, initializer=initializers.Constant(g, self.dtype))
+		self.add_param("g", (self.out_size, 1), initializer=initializers.Constant(g.reshape(-1, 1), self.dtype))
 		
 	def _get_W_data(self):
 		V = self.V.data
 		xp = cuda.get_array_module(V)
-		norm = xp.linalg.norm(V)
+		norm = get_norm(V)
 		V = V / norm
 		return self.g.data * V
 
 	def __call__(self, x):
-		if self.weight_initialized == False:
+		if hasattr(self, "V") == False:
 			with cuda.get_device(self._device_id):
 				self._initialize_weight(x.size // len(x.data))
 
 		if hasattr(self, "b") == False or hasattr(self, "g") == False:
 			xp = cuda.get_array_module(x.data)
-			t = linear(x, self.V, Variable(xp.asarray([1]).astype(x.dtype)))	# compute output with g = 1 and without bias
+			t = linear(x, self.V, Variable(xp.full((self.out_size, 1), 1.0).astype(x.dtype)))	# compute output with g = 1 and without bias
 			self._initialize_params(t.data)
 			return (t - self.mean_t) / self.std_t
 
