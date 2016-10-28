@@ -24,13 +24,17 @@ See videos:
 
 run `train_2d/train.py` to train the model.
 
-run `train_2d/gif_gaussian.py` or `train_2d/gif_swissroll` to generate gif frames.
+run `train_2d/gif_gaussian.py` or `train_2d/gif_swissroll.py` to generate gif frames.
 
 ## MNIST
 
 run `train_mnist/train.py`
 
 It will automatically download MNIST dataset.
+
+### Genereted images
+
+![result](https://github.com/musyoku/musyoku.github.io/blob/master/images/post/2016-10-28/mnist_success.png?raw=true)
 
 ## killmebaby（キルミーベイベー）
 
