@@ -5,6 +5,8 @@ code for the [paper](https://arxiv.org/abs/1606.03439)
 ### Requirements
 
 - Chainer 1.17
+- PIL
+- pylab
 
 #### Dependency
 

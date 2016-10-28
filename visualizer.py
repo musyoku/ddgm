@@ -2,7 +2,6 @@ import pylab
 import numpy as np
 from StringIO import StringIO
 from PIL import Image
-import matplotlib.patches as mpatches
 
 def tile_binary_images(x, dir=None, filename="x"):
 	if dir is None:
