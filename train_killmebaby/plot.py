@@ -12,8 +12,9 @@ def plot(filename="gen"):
 		pass
 
 	x_negative = ddgm.generate_x(100, test=True, as_numpy=True)
+	print x_negative.shape
 	# x_negative = (x_negative + 1) / 2
-	visualizer.tile_rgb_images(x_negative.transpose(0, 2, 3, 1), dir=args.plot_dir, image_width=64, image_height=64, filename=filename)
+	visualizer.tile_rgb_images(x_negative.transpose(0, 2, 3, 1), dir=args.plot_dir, filename=filename)
 
 if __name__ == '__main__':
 	plot()

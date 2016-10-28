@@ -36,7 +36,7 @@ else:
 	config.num_experts = 128
 	config.weight_init_std = 0.05
 	config.weight_initializer = "Normal"
-	config.use_weightnorm = True
+	config.use_weightnorm = False
 	config.nonlinearity = "elu"
 	config.optimizer = "Adam"
 	config.learning_rate = 0.0002
@@ -48,15 +48,17 @@ else:
 	feature_extractor = Sequential(weight_initializer=config.weight_initializer, weight_init_std=config.weight_init_std)
 	feature_extractor.add(Convolution2D(3, 32, ksize=4, stride=2, pad=1, use_weightnorm=config.use_weightnorm))
 	feature_extractor.add(Activation(config.nonlinearity))
+	feature_extractor.add(BatchNormalization(32))
 	feature_extractor.add(dropout())
 	feature_extractor.add(Convolution2D(32, 96, ksize=4, stride=2, pad=1, use_weightnorm=config.use_weightnorm))
 	feature_extractor.add(Activation(config.nonlinearity))
+	feature_extractor.add(BatchNormalization(96))
 	feature_extractor.add(dropout())
 	feature_extractor.add(Convolution2D(96, 256, ksize=4, stride=2, pad=1, use_weightnorm=config.use_weightnorm))
 	feature_extractor.add(Activation(config.nonlinearity))
+	feature_extractor.add(BatchNormalization(256))
 	feature_extractor.add(dropout())
 	feature_extractor.add(Convolution2D(256, 1024, ksize=4, stride=2, pad=1, use_weightnorm=config.use_weightnorm))
-	feature_extractor.add(Activation(config.nonlinearity))
 	feature_extractor.add(tanh())
 	feature_extractor.build()
 
@@ -114,15 +116,15 @@ else:
 
 	model = Sequential(weight_initializer=config.weight_initializer, weight_init_std=config.weight_init_std)
 	model.add(Linear(config.ndim_input, 512 * input_size ** 2, use_weightnorm=config.use_weightnorm))
-	model.add(BatchNormalization(512 * input_size ** 2))
 	model.add(Activation(config.nonlinearity))
+	model.add(BatchNormalization(512 * input_size ** 2))
 	model.add(reshape((-1, 512, input_size, input_size)))
 	model.add(Deconvolution2D(512, 256, ksize=4, stride=2, pad=paddings.pop(0), use_weightnorm=config.use_weightnorm))
+	model.add(Activation(config.nonlinearity))
 	model.add(BatchNormalization(256))
-	model.add(Activation(config.nonlinearity))
 	model.add(Deconvolution2D(256, 128, ksize=4, stride=2, pad=paddings.pop(0), use_weightnorm=config.use_weightnorm))
-	model.add(BatchNormalization(128))
 	model.add(Activation(config.nonlinearity))
+	model.add(BatchNormalization(128))
 	model.add(Deconvolution2D(128, 3, ksize=4, stride=2, pad=paddings.pop(0), use_weightnorm=config.use_weightnorm))
 	if config.distribution_output == "sigmoid":
 		model.add(sigmoid())

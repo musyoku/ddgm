@@ -12,7 +12,7 @@ def plot(filename="gen"):
 		pass
 
 	x_negative = ddgm.generate_x(100, test=True, as_numpy=True)
-	visualizer.tile_binary_images(x_negative, dir=args.plot_dir, image_width=28, image_height=28, filename=filename)
+	visualizer.tile_binary_images(x_negative.reshape((28, 28)), dir=args.plot_dir, filename=filename)
 
 if __name__ == "__main__":
 	plot()

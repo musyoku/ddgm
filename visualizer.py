@@ -4,7 +4,7 @@ from StringIO import StringIO
 from PIL import Image
 import matplotlib.patches as mpatches
 
-def tile_binary_images(x, image_width=28, image_height=28, dir=None, filename="x"):
+def tile_binary_images(x, dir=None, filename="x"):
 	if dir is None:
 		raise Exception()
 	try:
@@ -17,11 +17,11 @@ def tile_binary_images(x, image_width=28, image_height=28, dir=None, filename="x
 	pylab.gray()
 	for m in range(100):
 		pylab.subplot(10, 10, m + 1)
-		pylab.imshow(np.clip(x[m], 0, 1).reshape((image_width, image_height)), interpolation="none")
+		pylab.imshow(np.clip(x[m], 0, 1), interpolation="none")
 		pylab.axis("off")
 	pylab.savefig("{}/{}.png".format(dir, filename))
 
-def tile_rgb_images(x, image_width=28, image_height=28, dir=None, filename="x"):
+def tile_rgb_images(x, dir=None, filename="x"):
 	if dir is None:
 		raise Exception()
 	try:
