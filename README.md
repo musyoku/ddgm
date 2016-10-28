@@ -8,7 +8,7 @@ code for the [paper](https://arxiv.org/abs/1606.03439)
 - PIL
 - pylab
 
-#### Dependency
+Contains the following repository:
 
 - [chainer-sequential](https://github.com/musyoku/chainer-sequential)
 
