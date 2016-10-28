@@ -64,6 +64,7 @@ def main():
 		progress.start_epoch(epoch, max_epoch)
 		sum_energy_positive = 0
 		sum_energy_negative = 0
+		sum_loss = 0
 		sum_kld = 0
 
 		for t in xrange(n_trains_per_epoch):
@@ -87,13 +88,15 @@ def main():
 
 			sum_energy_positive += float(energy_positive.data)
 			sum_energy_negative += float(energy_negative.data)
+			sum_loss += float(loss.data)
 			sum_kld += float(kld.data)
 			progress.show(t, n_trains_per_epoch, {})
 
 		progress.show(n_trains_per_epoch, n_trains_per_epoch, {
 			"x+": int(sum_energy_positive / n_trains_per_epoch),
 			"x-": int(sum_energy_negative / n_trains_per_epoch),
-			"KLD": int(sum_kld / n_trains_per_epoch)
+			"loss": loss / n_trains_per_epoch,
+			"kld": sum_kld / n_trains_per_epoch
 		})
 		ddgm.save(args.model_dir)
 
