@@ -2,6 +2,8 @@
 
 code for the [paper](https://arxiv.org/abs/1606.03439)
 
+[この記事](http://musyoku.github.io/2016/10/28/Deep-Directed-Generative-Models-with-Energy-Based-Probability-Estimation/)で実装したコードです。
+
 ### Requirements
 
 - Chainer 1.17
