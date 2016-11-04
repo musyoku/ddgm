@@ -321,7 +321,7 @@ class DeepEnergyModel(Chain):
 		if x.data.ndim == 4:
 			batchsize = x.data.shape[0]
 			_x = F.reshape(x, (batchsize, -1))
-			energy = F.sum(_x * _x, axis=1) / sigma - F.reshape(self.b(x), (-1,)) + F.sum(experts, axis=1)
+			energy = F.sum(_x * _x, axis=1) / sigma - F.reshape(self.b(x), (-1,)) + F.sum(product_of_experts, axis=1)
 		else:
 			energy = F.sum(x * x, axis=1) / sigma - F.reshape(self.b(x), (-1,)) + F.sum(product_of_experts, axis=1)
 		
