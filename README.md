@@ -55,6 +55,6 @@ run `train_killmebaby/train.py`
 
 ![gen](https://github.com/musyoku/musyoku.github.io/blob/master/images/post/2016-10-28/kb_gen.png?raw=true)
 
-### When generator fails to learn
+### When generator failed to learn
 
 ![gen](https://github.com/musyoku/musyoku.github.io/blob/master/images/post/2016-10-28/kb_fail.png?raw=true)
