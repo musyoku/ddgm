@@ -95,7 +95,7 @@ def main():
 		progress.show(n_trains_per_epoch, n_trains_per_epoch, {
 			"x+": int(sum_energy_positive / n_trains_per_epoch),
 			"x-": int(sum_energy_negative / n_trains_per_epoch),
-			"loss": loss / n_trains_per_epoch,
+			"loss": sum_loss / n_trains_per_epoch,
 			"kld": sum_kld / n_trains_per_epoch
 		})
 		ddgm.save(args.model_dir)
