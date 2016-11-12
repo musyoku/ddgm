@@ -207,6 +207,7 @@ class DDGM():
 
 	def backprop_energy_model(self, loss):
 		self.zero_grads()
+		loss.backward()
 		if isinstance(self.optimizer_energy_model, sequential.chain.Eve):
 			self.optimizer_energy_model.update(loss)
 		else:
@@ -224,14 +225,6 @@ class DDGM():
 		energy_negative, experts_negative = self.compute_energy(x_batch_negative)
 		entropy = self.generative_model.compute_entropy()
 		return F.sum(energy_negative) / self.get_batchsize(x_batch_negative) - entropy
-
-	def compute_loss(self, x_batch_positive, x_batch_negative):
-		energy_positive, experts_positive = self.compute_energy(x_batch_positive)
-		energy_negative, experts_negative = self.compute_energy(x_batch_negative)
-		energy_positive = F.sum(energy_positive) / self.get_batchsize(x_batch_positive)
-		energy_negative = F.sum(energy_negative) / self.get_batchsize(x_batch_negative)
-		loss = energy_positive - energy_negative
-		return loss, energy_positive, energy_negative
 
 	def load(self, dir=None):
 		if dir is None:
