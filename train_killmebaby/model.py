@@ -39,7 +39,7 @@ else:
 	config.weight_initializer = "Normal"
 	config.use_weightnorm = False
 	config.nonlinearity = "elu"
-	config.optimizer = "Eve"
+	config.optimizer = "Adam"
 	config.learning_rate = 0.0002
 	config.momentum = 0.5
 	config.gradient_clipping = 10
@@ -103,7 +103,7 @@ else:
 	config.weight_init_std = 0.05
 	config.weight_initializer = "Normal"
 	config.nonlinearity = "relu"
-	config.optimizer = "Eve"
+	config.optimizer = "Adam"
 	config.learning_rate = 0.0002
 	config.momentum = 0.5
 	config.gradient_clipping = 10
