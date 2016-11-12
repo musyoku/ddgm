@@ -86,28 +86,12 @@ class DDGM():
 
 	def __init__(self, params_energy_model, params_generative_model):
 		self.params_energy_model = copy.deepcopy(params_energy_model)
-		self.params_energy_model["config"] = to_object(params_energy_model["config"])
+		self.config_energy_model = to_object(params_energy_model["config"])
 		self.params_generative_model = copy.deepcopy(params_generative_model)
-		self.params_generative_model["config"] = to_object(params_generative_model["config"])
+		self.config_generative_model = to_object(params_generative_model["config"])
 		self.build_network()
 		self.setup_optimizers()
 		self._gpu = False
-
-	def get_optimizer(self, name, lr, momentum):
-		if name.lower() == "adam":
-			return optimizers.Adam(alpha=lr, beta1=momentum)
-		if name.lower() == "adagrad":
-			return optimizers.AdaGrad(lr=lr)
-		if name.lower() == "adadelta":
-			return optimizers.AdaDelta(rho=momentum)
-		if name.lower() == "nesterov" or name.lower() == "nesterovag":
-			return optimizers.NesterovAG(lr=lr, momentum=momentum)
-		if name.lower() == "rmsprop":
-			return optimizers.RMSprop(lr=lr, alpha=momentum)
-		if name.lower() == "momentumsgd":
-			return optimizers.MomentumSGD(lr=lr, mommentum=mommentum)
-		if name.lower() == "sgd":
-			return optimizers.SGD(lr=lr)
 
 	def build_network(self):
 		self.build_energy_model()
@@ -126,8 +110,8 @@ class DDGM():
 		self.generative_model.add_model(sequential.from_dict(params["model"]))
 
 	def setup_optimizers(self):
-		config = self.params_energy_model["config"]
-		opt = self.get_optimizer(config.optimizer, config.learning_rate, config.momentum)
+		config = self.config_energy_model
+		opt = sequential.chain.get_optimizer(config.optimizer, config.learning_rate, config.momentum)
 		opt.setup(self.energy_model)
 		if config.weight_decay > 0:
 			opt.add_hook(optimizer.WeightDecay(config.weight_decay))
@@ -135,8 +119,8 @@ class DDGM():
 			opt.add_hook(GradientClipping(config.gradient_clipping))
 		self.optimizer_energy_model = opt
 		
-		config = self.params_generative_model["config"]
-		opt = self.get_optimizer(config.optimizer, config.learning_rate, config.momentum)
+		config = self.config_generative_model
+		opt = sequential.chain.get_optimizer(config.optimizer, config.learning_rate, config.momentum)
 		opt.setup(self.generative_model)
 		if config.weight_decay > 0:
 			opt.add_hook(optimizer.WeightDecay(config.weight_decay))
@@ -203,7 +187,7 @@ class DDGM():
 		return self.generative_model.compute_entropy()
 
 	def sample_z(self, batchsize=1):
-		config = self.params_generative_model["config"]
+		config = self.config_generative_model
 		ndim_z = config.ndim_input
 		# uniform
 		z_batch = np.random.uniform(-1, 1, (batchsize, ndim_z)).astype(np.float32)
@@ -223,13 +207,18 @@ class DDGM():
 
 	def backprop_energy_model(self, loss):
 		self.zero_grads()
-		loss.backward()
-		self.optimizer_energy_model.update()
+		if isinstance(self.optimizer_energy_model, sequential.chain.Eve):
+			self.optimizer_energy_model.update(loss)
+		else:
+			self.optimizer_energy_model.update()
 
 	def backprop_generative_model(self, loss):
 		self.zero_grads()
 		loss.backward()
-		self.optimizer_generative_model.update()
+		if isinstance(self.optimizer_generative_model, sequential.chain.Eve):
+			self.optimizer_generative_model.update(loss)
+		else:
+			self.optimizer_generative_model.update()
 
 	def compute_kld_between_generator_and_energy_model(self, x_batch_negative):
 		energy_negative, experts_negative = self.compute_energy(x_batch_negative)
