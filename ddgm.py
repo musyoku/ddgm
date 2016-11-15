@@ -73,15 +73,6 @@ class GradientClipping(object):
 				with cuda.get_device(grad):
 					grad *= rate
 
-class Chain(chainer.Chain):
-
-	def add_sequence(self, sequence, name_prefix="layer"):
-		if isinstance(sequence, sequential.Sequential) == False:
-			raise Exception()
-		for i, link in enumerate(sequence.links):
-			if isinstance(link, chainer.link.Link):
-				self.add_link("{}_{}".format(name_prefix, i), link)
-
 class DDGM():
 
 	def __init__(self, params_energy_model, params_generative_model):
@@ -107,7 +98,7 @@ class DDGM():
 	def build_generative_model(self):
 		params = self.params_generative_model
 		self.generative_model = DeepGenerativeModel()
-		self.generative_model.add_model(sequential.from_dict(params["model"]))
+		self.generative_model.add_sequence(sequential.from_dict(params["model"]))
 
 	def setup_optimizers(self):
 		config = self.config_energy_model
@@ -254,43 +245,31 @@ class DDGM():
 					os.remove(filename)
 				serializers.save_hdf5(filename, prop)
 
-class DeepGenerativeModel(Chain):
-
-	def add_model(self, sequence):
-		self.add_sequence(sequence)
-		self.model = sequence
-
-	@property
-	def xp(self):
-		return np if self._cpu else cuda.cupy
+class DeepGenerativeModel(sequential.chain.Chain):
 
 	def compute_entropy(self):
 		entropy = 0
-		for i, link in enumerate(self.model.links):
+		for i, link in enumerate(self.sequence.links):
 			if isinstance(link, L.BatchNormalization):
 				entropy += F.sum(F.log(2 * math.e * math.pi * link.gamma ** 2 + 1e-8) / 2)
 		return entropy
 
 	def __call__(self, z, test=False):
-		return self.model(z, test=test)
+		return self.sequence(z, test=test)
 
-class DeepEnergyModel(Chain):
+class DeepEnergyModel(sequential.chain.Chain):
 
 	def add_feature_extractor(self, sequence):
-		self.add_sequence(sequence, "feature_extractor")
+		self.add_sequence_with_name(sequence, "feature_extractor")
 		self.feature_extractor = sequence
 
 	def add_experts(self, sequence):
-		self.add_sequence(sequence, "experts")
+		self.add_sequence_with_name(sequence, "experts")
 		self.experts = sequence
 
 	def add_b(self, sequence):
-		self.add_sequence(sequence, "b")
+		self.add_sequence_with_name(sequence, "b")
 		self.b = sequence
-
-	@property
-	def xp(self):
-		return np if self._cpu else cuda.cupy
 
 	def compute_energy(self, x, features):
 		experts = self.experts(features)

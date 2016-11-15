@@ -49,17 +49,14 @@ else:
 	feature_extractor.add(Activation(config.nonlinearity))
 	feature_extractor.add(Linear(None, 128, use_weightnorm=config.use_weightnorm))
 	feature_extractor.add(tanh())
-	feature_extractor.build()
 
 	# experts
 	experts = Sequential(weight_initializer=config.weight_initializer, weight_init_std=config.weight_init_std)
 	experts.add(Linear(128, config.num_experts, use_weightnorm=config.use_weightnorm))
-	experts.build()
 
 	# b
 	b = Sequential(weight_initializer=config.weight_initializer, weight_init_std=config.weight_init_std)
 	b.add(Linear(config.ndim_input, 1, nobias=True))
-	b.build()
 
 	params = {
 		"config": config.to_dict(),
@@ -106,7 +103,6 @@ else:
 	model.add(BatchNormalization(128))
 	model.add(Activation(config.nonlinearity))
 	model.add(Linear(None, config.ndim_output, use_weightnorm=config.use_weightnorm))
-	model.build()
 
 	params = {
 		"config": config.to_dict(),

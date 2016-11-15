@@ -57,17 +57,14 @@ else:
 	feature_extractor.add(gaussian_noise(std=0.3))
 	feature_extractor.add(Linear(None, config.num_experts, use_weightnorm=config.use_weightnorm))
 	feature_extractor.add(tanh())
-	feature_extractor.build()
 
 	# experts
 	experts = Sequential(weight_initializer=config.weight_initializer, weight_init_std=config.weight_init_std)
 	experts.add(Linear(config.num_experts, config.num_experts, use_weightnorm=config.use_weightnorm))
-	experts.build()
 
 	# b
 	b = Sequential(weight_initializer=config.weight_initializer, weight_init_std=config.weight_init_std)
 	b.add(Linear(config.ndim_input, 1, nobias=True))
-	b.build()
 
 	params = {
 		"config": config.to_dict(),
@@ -118,7 +115,6 @@ else:
 		model.add(sigmoid())
 	if config.distribution_output == "tanh":
 		model.add(tanh())
-	model.build()
 
 	params = {
 		"config": config.to_dict(),

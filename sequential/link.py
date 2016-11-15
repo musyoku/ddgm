@@ -188,6 +188,8 @@ class _Merge(object):
 
 	def __call__(self, *args):
 		output = 0
+		if len(args) != len(self.merge_layers):
+			raise Exception()
 		for i, data in enumerate(args):
 			output += self.merge_layers[i](data)
 		return output
@@ -302,14 +304,18 @@ class BatchNormalization(Link):
 		return chainer.links.BatchNormalization(**args)
 
 class MinibatchDiscrimination(Link):
-	def __init__(self, in_size, num_kernels, ndim_kernel=5):
+	def __init__(self, in_size, num_kernels, ndim_kernel=5, train_weights=True):
 		self._link = "MinibatchDiscrimination"
 		self.in_size = in_size
 		self.num_kernels = num_kernels
 		self.ndim_kernel = ndim_kernel
+		self.train_weights = train_weights
+		self._initial_w = None
 
 	def to_link(self):
-		args = {}
+		args = {
+			"nobias": True
+		}
 		if hasattr(self, "_initialW"):
 			args["initialW"] = self._initialW
 		self.T = chainer.links.Linear(self.in_size, self.num_kernels * self.ndim_kernel, **args)
@@ -318,6 +324,8 @@ class MinibatchDiscrimination(Link):
 	def __call__(self, x):
 		xp = chainer.cuda.get_array_module(x.data)
 		batchsize = x.shape[0]
+		if self.train_weights == False and self._initial_w is not None:
+			self.T.W.data = self._initial_w
 
 		M = F.reshape(self.T(x), (-1, self.num_kernels, self.ndim_kernel))
 		M = F.expand_dims(M, 3)
@@ -328,4 +336,6 @@ class MinibatchDiscrimination(Link):
 		eraser = F.broadcast_to(xp.eye(batchsize, dtype=x.dtype).reshape((batchsize, 1, batchsize)), norm.shape)
 		c_b = F.exp(-(norm + 1e6 * eraser))
 		o_b = F.sum(c_b, axis=2)
+		if self.train_weights == False and self._initial_w is None:
+			self._initial_w = self.T.W.data
 		return F.concat((x, o_b), axis=1)

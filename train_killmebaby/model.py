@@ -7,8 +7,8 @@ sys.path.append(os.path.split(os.getcwd())[0])
 from params import Params
 from ddgm import DDGM, EnergyModelParams, GenerativeModelParams, DeepEnergyModel, DeepGenerativeModel
 from sequential import Sequential
-from sequential.link import Linear, BatchNormalization, Deconvolution2D, Convolution2D
-from sequential.function import Activation, dropout, gaussian_noise, tanh, sigmoid, reshape
+from sequential.link import Linear, BatchNormalization, Deconvolution2D, Convolution2D, MinibatchDiscrimination
+from sequential.function import Activation, dropout, gaussian_noise, tanh, sigmoid, reshape, reshape_1d
 from sequential.util import get_conv_padding, get_paddings_of_deconv_layers, get_in_size_of_deconv_layers
 
 # load params.json
@@ -60,18 +60,17 @@ else:
 	feature_extractor.add(Activation(config.nonlinearity))
 	feature_extractor.add(dropout())
 	feature_extractor.add(Convolution2D(192, 256, ksize=4, stride=2, pad=1, use_weightnorm=config.use_weightnorm))
+	feature_extractor.add(reshape_1d())
+	feature_extractor.add(MinibatchDiscrimination(None, num_kernels=50, ndim_kernel=5, train_weights=True))
 	feature_extractor.add(tanh())
-	feature_extractor.build()
 
 	# experts
 	experts = Sequential(weight_initializer=config.weight_initializer, weight_init_std=config.weight_init_std)
 	experts.add(Linear(None, config.num_experts, use_weightnorm=config.use_weightnorm))
-	experts.build()
 
 	# b
 	b = Sequential(weight_initializer=config.weight_initializer, weight_init_std=config.weight_init_std)
 	b.add(Linear(None, 1, nobias=True))
-	b.build()
 
 	params = {
 		"config": config.to_dict(),
@@ -131,7 +130,6 @@ else:
 		model.add(sigmoid())
 	if config.distribution_output == "tanh":
 		model.add(tanh())
-	model.build()
 
 	params = {
 		"config": config.to_dict(),

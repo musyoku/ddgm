@@ -1,9 +1,9 @@
 import numpy as np
-import os, time, math
+import os, time, math, collections
 import sequential
 from link import _Merge, MinibatchDiscrimination, Gaussian
 import chainer
-from chainer import optimizers, serializers
+from chainer import optimizers, serializers, Variable
 from chainer import cuda
 from chainer import optimizer
 
@@ -96,11 +96,13 @@ class Eve(optimizer.GradientMethod):
 		fix2 = 1. - self.beta2 ** self.t
 		return self.alpha * math.sqrt(fix2) / fix1
 
-	def update(self, loss=None):
-		if loss is None:
-			raise Exception()
-		self.loss = float(loss.data)
-		super(Eve, self).update()
+	def update(self, lossfun=None, *args, **kwds):
+		# Overwrites GradientMethod.update in order to get loss values
+		if lossfun is None:
+			raise RuntimeError('Eve.update requires lossfun to be specified')
+		loss_var = lossfun(*args, **kwds)
+		self.loss = float(loss_var.data)
+		super(Eve, self).update(lossfun=lambda: loss_var)
 
 def get_optimizer(name, lr, momentum=0.9):
 	if name.lower() == "adam":
@@ -123,27 +125,31 @@ def get_optimizer(name, lr, momentum=0.9):
 class Chain(chainer.Chain):
 
 	def add_sequence(self, sequence):
+		self.add_sequence_with_name(sequence)
+		self.sequence = sequence
+
+	def add_sequence_with_name(self, sequence, name="link"):
 		if isinstance(sequence, sequential.Sequential) == False:
 			raise Exception()
 		for i, link in enumerate(sequence.links):
 			if isinstance(link, chainer.link.Link):
-				self.add_link("link_{}".format(i), link)
+				self.add_link("{}_{}".format(name, i), link)
 			elif isinstance(link, Gaussian):
-				self.add_link("link_{}_ln_var".format(i), link.layer_ln_var)
-				self.add_link("link_{}_mean".format(i), link.layer_mean)
+				self.add_link("{}_{}_ln_var".format(name, i), link.layer_ln_var)
+				self.add_link("{}_{}_mean".format(name, i), link.layer_mean)
 			elif isinstance(link, MinibatchDiscrimination):
-				self.add_link("link_{}".format(i), link.T)
+				self.add_link("{}_{}".format(name, i), link.T)
 			elif isinstance(link, _Merge):
 				for l, layer in enumerate(link.merge_layers):
-					self.add_link("link_{}_{}".format(i, l), layer)
-		self.sequence = sequence
+					self.add_link("{}_{}_{}".format(name, i, l), layer)
 
 	def load(self, filename):
 		if os.path.isfile(filename):
 			print "loading {} ...".format(filename)
 			serializers.load_hdf5(filename, self)
 		else:
-			print filename, "not found."
+			pass
+			# print filename, "not found."
 
 	def save(self, filename):
 		if os.path.isfile(filename):
@@ -160,12 +166,16 @@ class Chain(chainer.Chain):
 		self.optimizer = opt
 
 	def backprop(self, loss):
-		self.optimizer.zero_grads()
-		loss.backward()
-		if isinstance(self.optimizer, Eve):
-			self.optimizer.update(loss)
+		# self.optimizer.zero_grads()
+		# loss.backward()
+		# if isinstance(self.optimizer, Eve):
+		# 	self.optimizer.update(loss)
+		# else:
+		# 	self.optimizer.update()
+		if isinstance(loss, Variable):
+			self.optimizer.update(lossfun=lambda: loss)
 		else:
-			self.optimizer.update()
+			self.optimizer.update(lossfun=loss)
 
 	def __call__(self, *args, **kwargs):
 		return self.sequence(*args, **kwargs)
