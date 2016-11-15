@@ -144,5 +144,6 @@ params_generative_model = params
 ddgm = DDGM(params_energy_model, params_generative_model)
 ddgm.load(args.model_dir)
 
-if args.gpu_enabled == 1:
+if args.gpu_device != -1:
+	cuda.get_device(args.gpu_device).use()
 	ddgm.to_gpu()
