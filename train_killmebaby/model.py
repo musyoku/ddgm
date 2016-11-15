@@ -7,8 +7,8 @@ sys.path.append(os.path.split(os.getcwd())[0])
 from params import Params
 from ddgm import DDGM, EnergyModelParams, GenerativeModelParams, DeepEnergyModel, DeepGenerativeModel
 from sequential import Sequential
-from sequential.link import Linear, BatchNormalization, Deconvolution2D, Convolution2D, MinibatchDiscrimination
-from sequential.function import Activation, dropout, gaussian_noise, tanh, sigmoid, reshape, reshape_1d
+from sequential.layers import Linear, BatchNormalization, Deconvolution2D, Convolution2D, MinibatchDiscrimination
+from sequential.functions import Activation, dropout, gaussian_noise, tanh, sigmoid, reshape, reshape_1d
 from sequential.util import get_conv_padding, get_paddings_of_deconv_layers, get_in_size_of_deconv_layers
 
 # load params.json

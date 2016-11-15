@@ -6,8 +6,8 @@ sys.path.append(os.path.split(os.getcwd())[0])
 from params import Params
 from ddgm import DDGM, EnergyModelParams, GenerativeModelParams, DeepEnergyModel, DeepGenerativeModel
 from sequential import Sequential
-from sequential.link import Linear, BatchNormalization
-from sequential.function import Activation, dropout, gaussian_noise, tanh, sigmoid
+from sequential.layers import Linear, BatchNormalization
+from sequential.functions import Activation, dropout, gaussian_noise, tanh, sigmoid
 
 # load params.json
 try:

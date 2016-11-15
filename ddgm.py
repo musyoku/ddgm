@@ -47,32 +47,6 @@ class GenerativeModelParams(Params):
 		self.gradient_clipping = 10
 		self.weight_decay = 0
 
-def sum_sqnorm(arr):
-	sq_sum = collections.defaultdict(float)
-	for x in arr:
-		with cuda.get_device(x) as dev:
-			x = x.ravel()
-			s = x.dot(x)
-			sq_sum[int(dev)] += s
-	return sum([float(i) for i in six.itervalues(sq_sum)])
-	
-class GradientClipping(object):
-	name = "GradientClipping"
-
-	def __init__(self, threshold):
-		self.threshold = threshold
-
-	def __call__(self, opt):
-		norm = np.sqrt(sum_sqnorm([p.grad for p in opt.target.params()]))
-		if norm == 0:
-			return
-		rate = self.threshold / norm
-		if rate < 1:
-			for param in opt.target.params():
-				grad = param.grad
-				with cuda.get_device(grad):
-					grad *= rate
-
 class DDGM():
 
 	def __init__(self, params_energy_model, params_generative_model):
@@ -81,7 +55,6 @@ class DDGM():
 		self.params_generative_model = copy.deepcopy(params_generative_model)
 		self.config_generative_model = to_object(params_generative_model["config"])
 		self.build_network()
-		self.setup_optimizers()
 		self._gpu = False
 
 	def build_network(self):
@@ -94,34 +67,15 @@ class DDGM():
 		self.energy_model.add_feature_extractor(sequential.from_dict(params["feature_extractor"]))
 		self.energy_model.add_experts(sequential.from_dict(params["experts"]))
 		self.energy_model.add_b(sequential.from_dict(params["b"]))
+		config = self.config_energy_model
+		self.energy_model.setup_optimizers(config.optimizer, config.learning_rate, config.momentum)
 
 	def build_generative_model(self):
 		params = self.params_generative_model
 		self.generative_model = DeepGenerativeModel()
 		self.generative_model.add_sequence(sequential.from_dict(params["model"]))
-
-	def setup_optimizers(self):
-		config = self.config_energy_model
-		opt = sequential.chain.get_optimizer(config.optimizer, config.learning_rate, config.momentum)
-		opt.setup(self.energy_model)
-		if config.weight_decay > 0:
-			opt.add_hook(optimizer.WeightDecay(config.weight_decay))
-		if config.gradient_clipping > 0:
-			opt.add_hook(GradientClipping(config.gradient_clipping))
-		self.optimizer_energy_model = opt
-		
 		config = self.config_generative_model
-		opt = sequential.chain.get_optimizer(config.optimizer, config.learning_rate, config.momentum)
-		opt.setup(self.generative_model)
-		if config.weight_decay > 0:
-			opt.add_hook(optimizer.WeightDecay(config.weight_decay))
-		if config.gradient_clipping > 0:
-			opt.add_hook(GradientClipping(config.gradient_clipping))
-		self.optimizer_generative_model = opt
-
-	def update_laerning_rate(self, lr):
-		self.optimizer_energy_model.alpha = lr
-		self.optimizer_generative_model.alpha = lr
+		self.generative_model.setup_optimizers(config.optimizer, config.learning_rate, config.momentum)
 
 	def to_gpu(self):
 		self.energy_model.to_gpu()
@@ -197,20 +151,10 @@ class DDGM():
 		return x_batch
 
 	def backprop_energy_model(self, loss):
-		self.zero_grads()
-		loss.backward()
-		if isinstance(self.optimizer_energy_model, sequential.chain.Eve):
-			self.optimizer_energy_model.update(loss)
-		else:
-			self.optimizer_energy_model.update()
+		self.energy_model.backprop(loss)
 
 	def backprop_generative_model(self, loss):
-		self.zero_grads()
-		loss.backward()
-		if isinstance(self.optimizer_generative_model, sequential.chain.Eve):
-			self.optimizer_generative_model.update(loss)
-		else:
-			self.optimizer_generative_model.update()
+		self.generative_model.backprop(loss)
 
 	def compute_kld_between_generator_and_energy_model(self, x_batch_negative):
 		energy_negative, experts_negative = self.compute_energy(x_batch_negative)
@@ -220,15 +164,8 @@ class DDGM():
 	def load(self, dir=None):
 		if dir is None:
 			raise Exception()
-		for attr in vars(self):
-			prop = getattr(self, attr)
-			if isinstance(prop, chainer.Chain) or isinstance(prop, chainer.optimizer.GradientMethod):
-				filename = dir + "/{}.hdf5".format(attr)
-				if os.path.isfile(filename):
-					print "loading {} ...".format(filename)
-					serializers.load_hdf5(filename, prop)
-				else:
-					print filename, "not found."
+		self.energy_model.load(dir + "/energy_model.hdf5")
+		self.generative_model.load(dir + "/generative_model.hdf5")
 
 	def save(self, dir=None):
 		if dir is None:
@@ -237,13 +174,8 @@ class DDGM():
 			os.mkdir(dir)
 		except:
 			pass
-		for attr in vars(self):
-			prop = getattr(self, attr)
-			if isinstance(prop, chainer.Chain) or isinstance(prop, chainer.optimizer.GradientMethod):
-				filename = dir + "/{}.hdf5".format(attr)
-				if os.path.isfile(filename):
-					os.remove(filename)
-				serializers.save_hdf5(filename, prop)
+		self.energy_model.save(dir + "/energy_model.hdf5")
+		self.generative_model.save(dir + "/generative_model.hdf5")
 
 class DeepGenerativeModel(sequential.chain.Chain):
 
