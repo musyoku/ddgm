@@ -68,14 +68,14 @@ class DDGM():
 		self.energy_model.add_experts(sequential.from_dict(params["experts"]))
 		self.energy_model.add_b(sequential.from_dict(params["b"]))
 		config = self.config_energy_model
-		self.energy_model.setup_optimizers(config.optimizer, config.learning_rate, config.momentum)
+		self.energy_model.setup_optimizers(config.optimizer, config.learning_rate, config.momentum, config.weight_decay, config.gradient_clipping)
 
 	def build_generative_model(self):
 		params = self.params_generative_model
 		self.generative_model = DeepGenerativeModel()
 		self.generative_model.add_sequence(sequential.from_dict(params["model"]))
 		config = self.config_generative_model
-		self.generative_model.setup_optimizers(config.optimizer, config.learning_rate, config.momentum)
+		self.generative_model.setup_optimizers(config.optimizer, config.learning_rate, config.momentum, config.weight_decay, config.gradient_clipping)
 
 	def to_gpu(self):
 		self.energy_model.to_gpu()
